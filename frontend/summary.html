@@ -1,0 +1,67 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Summary</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <h1>Session Summary</h1>
+
+  <div class="card" id="summary"></div>
+
+  <div class="card">
+    <h3>Post-Session Questionnaire</h3>
+
+    <label>Enjoyment (1-5)</label>
+    <input id="enjoyment" type="number" min="1" max="5" value="3" />
+
+    <label>Frustration (1-5)</label>
+    <input id="frustration" type="number" min="1" max="5" value="3" />
+
+    <label>Effort (1-5)</label>
+    <input id="effort" type="number" min="1" max="5" value="3" />
+
+    <label>Notes (optional)</label>
+    <input id="free" />
+
+    <div class="row" style="margin-top:12px;">
+      <button id="submitQ">Submit Questionnaire</button>
+      <a href="index.html" class="small">Back to Login</a>
+    </div>
+
+    <p id="status" class="small"></p>
+  </div>
+
+  <script type="module">
+    import { api, loadState } from "./api.js";
+
+    const state = loadState();
+    const s = state.summary || {};
+    document.getElementById("summary").innerHTML = `
+      <div><b>Total Questions:</b> ${s.total_questions ?? "-"}</div>
+      <div><b>Correct:</b> ${s.correct_count ?? "-"}</div>
+      <div class="small">Session ID: ${state.session_id ?? "-"}</div>
+    `;
+
+    document.getElementById("submitQ").onclick = async () => {
+      const payload = {
+        enjoyment: parseInt(document.getElementById("enjoyment").value, 10),
+        frustration: parseInt(document.getElementById("frustration").value, 10),
+        effort: parseInt(document.getElementById("effort").value, 10),
+        free_text: document.getElementById("free").value || ""
+      };
+
+      const status = document.getElementById("status");
+      status.textContent = "Submitting...";
+
+      try {
+        await api(`/sessions/${state.session_id}/questionnaire?user_id=${state.user_id}`, "POST", payload);
+        status.textContent = "Saved ✅";
+      } catch (e) {
+        status.textContent = e.message;
+      }
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>FYP Adaptive Quiz - MVP</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <h1>FYP Adaptive Quiz (MVP)</h1>
+
+  <div class="card">
+    <p class="small">Enter any Study Code (e.g. DEMO01). If it doesn’t exist, the backend creates it.</p>
+
+    <label>Study Code</label>
+    <input id="code" placeholder="DEMO01" />
+
+    <div class="row" style="margin-top:12px;">
+      <button id="loginBtn">Login</button>
+      <span id="status" class="small"></span>
+    </div>
+  </div>
+
+  <script type="module">
+    import { api, saveState } from "./api.js";
+
+  document.getElementById("loginBtn").onclick = async () => {
+    const code = document.getElementById("code").value.trim();
+    const status = document.getElementById("status");
+
+    if (!code) {
+      status.textContent = "Please enter a Study Code.";
+      return;
+    }
+
+    status.textContent = "Logging in...";
+
+    try {
+      const out = await api("/auth/login", "POST", { study_code: code });
+      saveState({ user_id: out.user_id, study_code: out.study_code, hexad_type: out.hexad_type });
+      status.textContent = `Logged in. Hexad: ${out.hexad_type}`;
+      window.location.href = (out.hexad_type === "Unknown") ? "onboarding.html" : "quiz.html";
+    } catch (e) {
+      status.textContent = e?.message ? e.message : JSON.stringify(e);
+      console.error("Login error:", e);
+    }
+  };
+  </script>
+</body>
+</html>

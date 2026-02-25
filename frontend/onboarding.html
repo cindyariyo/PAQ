@@ -1,0 +1,60 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Onboarding</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <h1>Onboarding (Hexad - MVP)</h1>
+
+  <div class="card" id="qCard">Loading...</div>
+  <button id="submitBtn">Submit</button>
+  <p id="status" class="small"></p>
+
+  <script type="module">
+    import { api, loadState, saveState } from "./api.js";
+
+    const state = loadState();
+    const qCard = document.getElementById("qCard");
+    const status = document.getElementById("status");
+    let questions = [];
+
+    async function load() {
+      questions = await api("/onboarding/questions");
+      qCard.innerHTML = questions.map(q => `
+        <div style="margin-bottom:12px;">
+          <div><b>${q.text}</b></div>
+          <label>Score (1-5)</label>
+          <select data-qid="${q.id}">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3" selected>3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+        </div>
+      `).join("");
+    }
+
+    document.getElementById("submitBtn").onclick = async () => {
+      status.textContent = "Submitting...";
+      const answers = {};
+      document.querySelectorAll("select[data-qid]").forEach(sel => {
+        answers[sel.dataset.qid] = parseInt(sel.value, 10);
+      });
+
+      try {
+        const out = await api("/onboarding/submit", "POST", { user_id: state.user_id, answers });
+        saveState({ ...state, hexad_type: out.hexad_type, settings: out.settings });
+        status.textContent = `Saved. Hexad = ${out.hexad_type}`;
+        window.location.href = "quiz.html";
+      } catch (e) {
+        status.textContent = e.message;
+      }
+    };
+
+    load();
+  </script>
+</body>
+</html>

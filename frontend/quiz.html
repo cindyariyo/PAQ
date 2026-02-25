@@ -1,0 +1,469 @@
+﻿<!-- <!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Quiz</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <h1>Quiz Session</h1>
+
+  <div class="card">
+    <div class="small" id="meta"></div>
+    <hr />
+    <pre id="prompt"></pre>
+
+    <div id="options"></div>
+
+    <div class="row" style="margin-top:12px;">
+      <button id="hintBtn">Hint</button>
+      <button id="submitBtn">Submit Answer</button>
+      <button id="finishBtn">Finish Session</button>
+    </div>
+
+    <p class="small" id="hintArea"></p>
+    <p class="small" id="feedback"></p>
+  </div>
+
+  <script type="module">
+    import { api, loadState, saveState } from "./api.js";
+
+    const state = loadState();
+
+    let sessionId = null;
+    let currentQuestion = null;
+
+    let startTime = null;
+    let retryCount = 0;
+    let hintLevelShown = 0;
+    let difficulty = 1;
+
+    const meta = document.getElementById("meta");
+    const prompt = document.getElementById("prompt");
+    const optionsDiv = document.getElementById("options");
+    const hintArea = document.getElementById("hintArea");
+    const feedback = document.getElementById("feedback");
+
+    function renderQuestion(q) {
+      currentQuestion = q;
+      retryCount = 0;
+      hintLevelShown = 0;
+      hintArea.textContent = "";
+      feedback.textContent = "";
+      startTime = Date.now();
+
+      prompt.textContent = q.prompt;
+      optionsDiv.innerHTML = q.options.map(opt => `
+        <label><input type="radio" name="ans" value="${opt}"> ${opt}</label>
+      `).join("");
+    }
+
+    function selectedAnswer() {
+      const el = document.querySelector('input[name="ans"]:checked');
+      return el ? el.value : "";
+    }
+
+    async function start() {
+      const out = await api("/sessions/start", "POST", { user_id: state.user_id });
+      sessionId = out.session_id;
+      difficulty = out.difficulty_level;
+
+      saveState({ ...state, session_id: sessionId, settings: out.settings, hexad_type: out.hexad_type });
+
+      meta.textContent = `StudyCode: ${state.study_code} | Hexad: ${out.hexad_type} | Difficulty: ${difficulty} | Session: ${sessionId}`;
+      renderQuestion(out.question);
+    }
+
+    document.getElementById("hintBtn").onclick = async () => {
+      const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+      const out = await api(
+        `/sessions/${sessionId}/hint?user_id=${state.user_id}&question_id=${currentQuestion.id}&time_spent_seconds=${timeSpent}&retry_count=${retryCount}&current_hint_level=${hintLevelShown}`,
+        "POST"
+      );
+      hintLevelShown = out.hint_level;
+      hintArea.textContent = `Hint ${out.hint_level}: ${out.hint_text}`;
+    };
+
+    document.getElementById("submitBtn").onclick = async () => {
+      const ans = selectedAnswer();
+      if (!ans) { feedback.textContent = "Pick an answer first."; return; }
+
+      const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+
+      const out = await api(`/sessions/${sessionId}/answer`, "POST", {
+        user_id: state.user_id,
+        question_id: currentQuestion.id,
+        answer: ans,
+        time_spent_seconds: timeSpent,
+        retry_count: retryCount,
+        hint_level_shown: hintLevelShown
+      });
+
+      difficulty = out.updated_difficulty_level;
+
+      if (out.correct) {
+        feedback.textContent = `✅ Correct. ${out.explanation}`;
+      } else {
+        feedback.textContent = `❌ Incorrect. ${out.explanation}`;
+        retryCount += 1;
+      }
+
+      meta.textContent = `StudyCode: ${state.study_code} | Hexad: ${state.hexad_type} | Difficulty: ${difficulty} | Session: ${sessionId}`;
+
+      if (out.next_question) {
+        setTimeout(() => renderQuestion(out.next_question), 600);
+      } else {
+        feedback.textContent += " (Session limit reached — click Finish Session.)";
+      }
+    };
+
+    document.getElementById("finishBtn").onclick = async () => {
+      const out = await api(`/sessions/${sessionId}/finish?user_id=${state.user_id}`, "POST");
+      saveState({ ...state, session_id: sessionId, summary: out });
+      window.location.href = "summary.html";
+    };
+
+    start();
+  </script>
+</body>
+</html> -->
+
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Quiz</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Quiz Session</h1>
+
+    <div class="card" id="card">
+      <div class="hud">
+        <div class="chips">
+          <div class="chip" id="chipLevel">🧩 Level 1</div>
+
+          <div class="statRow">
+            <div class="stat" id="statXP">
+              <div>⭐</div>
+              <div>
+                <div class="big" id="xpVal">0</div>
+                <div class="label">XP</div>
+              </div>
+            </div>
+
+            <div class="stat" id="statStreak">
+              <div>🔥</div>
+              <div>
+                <div class="big" id="streakVal">0</div>
+                <div class="label">Streak</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+        <div class="progressBox">
+          <div class="tiny" id="progressText">0 / 7</div>
+          <div class="progress">
+            <div class="progress-bar" id="progressBar"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tiny" id="meta"></div>
+      <hr />
+
+      <div class="grid2">
+        <div>
+          <pre id="prompt">Loading question...</pre>
+          <div id="options"></div>
+
+          <div class="row" style="margin-top:12px;">
+            <button id="hintBtn">Hint</button>
+            <button class="btn-primary" id="submitBtn">Submit Answer</button>
+            <button id="finishBtn">Finish</button>
+          </div>
+
+          <div class="toast" id="rewardFeed" style="display:block;"></div>
+          <div class="toast" id="toast"></div>
+          <p class="small" id="hintArea"></p>
+          <p class="small" id="feedback"></p>
+          <p class="small" id="err"></p>
+        </div>
+
+        <div class="card sidePanel" style="background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.10);">
+          <div class="small"><b id="tipsTitle">Session Tips</b></div>
+          <ul class="small" id="tipsList" style="margin:10px 0 0; padding-left: 18px; color: rgba(255,255,255,0.75);"></ul>
+
+          <hr />
+
+          <div class="small"><b>Rewards</b></div>
+          <div class="small" id="rewardPanel" style="color: rgba(255,255,255,0.75); margin-top:8px;">
+            Earn XP, build streaks, and unlock badges.
+          </div>
+
+          <hr />
+
+          <div class="tiny" id="hexadNote"></div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { api, loadState, saveState } from "./api.js";
+
+    const state = loadState();
+    const card = document.getElementById("card");
+
+    let sessionId = state.session_id || null;
+    let currentQuestion = null;
+
+    let startTime = null;
+    let retryCount = 0;
+    let hintLevelShown = 0;
+
+    // HUD elements
+    const chipLevel = document.getElementById("chipLevel");
+    const chipXP = document.getElementById("chipXP");
+    const chipStreak = document.getElementById("chipStreak");
+    const progressText = document.getElementById("progressText");
+    const progressBar = document.getElementById("progressBar");
+
+    const meta = document.getElementById("meta");
+    const prompt = document.getElementById("prompt");
+    const optionsDiv = document.getElementById("options");
+    const hintArea = document.getElementById("hintArea");
+    const feedback = document.getElementById("feedback");
+    const err = document.getElementById("err");
+    const toast = document.getElementById("toast");
+    const hexadNote = document.getElementById("hexadNote");
+
+    function showToast(msg) {
+      if (!msg) return;
+      toast.textContent = msg;
+      toast.style.display = "block";
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => (toast.style.display = "none"), 2300);
+    }
+
+    function pulse() {
+      card.classList.remove("pulse");
+      void card.offsetWidth;
+      card.classList.add("pulse");
+    }
+
+    function updateHUD(data) {
+      const lvl = data.updated_difficulty_level ?? data.difficulty_level ?? 1;
+      chipLevel.textContent = `🧩 Level ${lvl}`;
+
+      const xp = data.xp ?? 0;
+      const streak = data.streak ?? 0;
+
+      document.getElementById("xpVal").textContent = xp;
+      document.getElementById("streakVal").textContent = streak;
+
+      const done = data.questions_answered ?? 0;
+      const total = data.session_total_questions ?? 7;
+      progressText.textContent = `${done} / ${total}`;
+      progressBar.style.width = `${Math.round((done / total) * 100)}%`;
+    }
+
+
+    function renderQuestion(q) {
+      currentQuestion = q;
+      retryCount = 0;
+      hintLevelShown = 0;
+      hintArea.textContent = "";
+      feedback.textContent = "";
+      err.textContent = "";
+      startTime = Date.now();
+
+      prompt.textContent = q.prompt;
+      optionsDiv.innerHTML = q.options.map(opt => `
+        <label class="option">
+          <input type="radio" name="ans" value="${opt}">
+          <span>${opt}</span>
+        </label>
+      `).join("");
+    }
+
+    function selectedAnswer() {
+      const el = document.querySelector('input[name="ans"]:checked');
+      return el ? el.value : "";
+    }
+
+    
+    function applyHexadUI(hexad){
+      const tipsList = document.getElementById("tipsList");
+      const tipsTitle = document.getElementById("tipsTitle");
+      const rewardPanel = document.getElementById("rewardPanel");
+
+      const tipsByHexad = {
+        "Player": [
+          "Go for quick wins: fast + correct = level up.",
+          "Hints are fine, but try one attempt first for bonus XP.",
+          "Keep streaks alive to “farm” XP."
+        ],
+        "Achiever": [
+          "Aim for strong correct answers (no hint + <40s) to level up faster.",
+          "Use Hint 1 as a last resort; keep mastery high.",
+          "Track accuracy: focus on consistency."
+        ],
+        "Socialiser": [
+          "Hints are normal — many learners use them on tricky items.",
+          "Focus on steady progress over speed.",
+          "Review explanations to improve over time."
+        ],
+        "Free Spirit": [
+          "Explore: try different approaches before using hints.",
+          "Optional harder questions may appear — take them if you feel ready.",
+          "Speed matters less than experimenting."
+        ],
+        "Philanthropist": [
+          "Use hints to learn the concept, not just the answer.",
+          "Read explanations carefully to build long-term understanding.",
+          "Progress steadily; consistency wins."
+        ],
+        "Disruptor": [
+          "Try an alternative method if your first approach fails.",
+          "Test edge cases mentally; trace with small examples.",
+          "If stuck, use Hint 1 then attempt immediately."
+        ],
+        "Unknown": [
+          "Answer quickly + correctly to level up.",
+          "Hints help, but reduce “strong correct” streak.",
+          "Streak boosts your momentum."
+        ]
+      };
+
+      const rewardsByHexad = {
+        "Player": "🏆 Rewards focus: XP bursts + streak bonuses.",
+        "Achiever": "📈 Rewards focus: mastery + level-ups.",
+        "Socialiser": "🤝 Rewards focus: supportive feedback + reassurance.",
+        "Free Spirit": "🧭 Rewards focus: exploration + optional challenge.",
+        "Philanthropist": "💛 Rewards focus: learning progress + helpful nudges.",
+        "Disruptor": "🛠 Rewards focus: alternative strategies + experimentation.",
+        "Unknown": "🎮 Rewards focus: XP + streak + level."
+      };
+
+      tipsTitle.textContent = `${hexad} Tips`;
+      tipsList.innerHTML = (tipsByHexad[hexad] || tipsByHexad["Unknown"])
+        .map(t => `<li>${t}</li>`).join("");
+      rewardPanel.textContent = rewardsByHexad[hexad] || rewardsByHexad["Unknown"];
+    }
+
+async function start() {
+      try {
+        if (!state.user_id) {
+          err.textContent = "Missing user_id. Go back to login.";
+          return;
+        }
+
+        const out = await api("/sessions/start", "POST", { user_id: state.user_id });
+        applyHexadUI(out.hexad_type);
+        hexadNote.textContent = "";
+
+        sessionId = out.session_id;
+
+        saveState({ ...state, session_id: sessionId, hexad_type: out.hexad_type, settings: out.settings });
+
+        meta.textContent = `StudyCode: ${state.study_code} | Hexad: ${out.hexad_type} | Session: ${sessionId}`;
+        hexadNote.textContent = `Hexad framing: ${out.hexad_type} (messages + hints are tailored).`;
+
+        updateHUD(out);
+        renderQuestion(out.question);
+        showToast("🎮 Session started! Earn XP and build a streak.");
+      } catch (e) {
+        err.textContent = e?.message ? e.message : JSON.stringify(e);
+      }
+    }
+
+    
+    document.getElementById("hintBtn").onclick = async () => {
+      err.textContent = "";
+      if (!sessionId || !currentQuestion) return;
+
+      const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+
+      try {
+        const out = await api(
+          `/sessions/${sessionId}/hint?user_id=${state.user_id}&question_id=${currentQuestion.id}` +
+          `&time_spent_seconds=${timeSpent}&retry_count=${retryCount}&current_hint_level=${hintLevelShown}`,
+          "POST"
+        );
+        hintLevelShown = out.hint_level;
+        hintArea.textContent = `Hint ${out.hint_level}: ${out.hint_text}`;
+        showToast("💡 Hint shown.");
+      } catch (e) {
+        err.textContent = e?.message ? e.message : JSON.stringify(e);
+      }
+    };
+
+    document.getElementById("submitBtn").onclick = async () => {
+      err.textContent = "";
+      const ans = selectedAnswer();
+      if (!ans) { feedback.textContent = "Pick an answer first."; return; }
+
+      const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+
+      try {
+        const out = await api(`/sessions/${sessionId}/answer`, "POST", {
+          user_id: state.user_id,
+          question_id: currentQuestion.id,
+          answer: ans,
+          time_spent_seconds: timeSpent,
+          retry_count: retryCount,
+          hint_level_shown: hintLevelShown
+        });
+
+        updateHUD(out);
+        pulse();
+
+            // NEW: show reward + difficulty messages permanently
+        document.getElementById("rewardFeed").textContent =
+          (out.feedback_message || "") +
+          (out.difficulty_message ? `  •  ${out.difficulty_message}` : "");
+
+        // show messages
+        if (out.feedback_message) showToast(out.feedback_message);
+        if (out.difficulty_message && out.difficulty_message !== "Difficulty unchanged.") {
+          showToast(out.difficulty_message);
+        }
+
+        if (out.correct) {
+          feedback.textContent = `✅ ${out.explanation}`;
+        } else {
+          feedback.textContent = `❌ ${out.explanation}`;
+          retryCount += 1;
+        }
+
+        if (out.next_question) {
+          setTimeout(() => renderQuestion(out.next_question), 450);
+        } else {
+          showToast("🏁 Session complete — click Finish.");
+        }
+      } catch (e) {
+        err.textContent = e?.message ? e.message : JSON.stringify(e);
+      }
+    };
+
+    document.getElementById("finishBtn").onclick = async () => {
+      err.textContent = "";
+      try {
+        const out = await api(`/sessions/${sessionId}/finish?user_id=${state.user_id}`, "POST");
+        saveState({ ...state, session_id: sessionId, summary: out });
+        window.location.href = "summary.html";
+      } catch (e) {
+        err.textContent = e?.message ? e.message : JSON.stringify(e);
+      }
+    };
+
+    start();
+  </script>
+</body>
+</html>

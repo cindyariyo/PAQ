@@ -2,64 +2,220 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Summary</title>
+  <title>Session Summary</title>
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .stat-tile {
+      background: rgba(0,0,0,0.18);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 14px;
+      text-align: center;
+    }
+    .stat-tile .big {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .stat-tile .label {
+      font-size: 12px;
+      color: rgba(255,255,255,0.55);
+    }
+
+    .likert-block {
+      margin-bottom: 20px;
+    }
+    .likert-block .q-label {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      line-height: 1.5;
+      color: rgba(255,255,255,0.9);
+      display: block;
+      margin-top: 0;
+    }
+    .likert-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .likert-row label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.15);
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+      transition: background 0.15s, border-color 0.15s;
+      min-width: 48px;
+      text-align: center;
+      margin-top: 0;
+    }
+    .likert-row label:hover { background: rgba(255,255,255,0.10); }
+    .likert-row label:has(input:checked) {
+      background: rgba(120,140,255,0.22);
+      border-color: rgba(120,140,255,0.55);
+      color: rgba(255,255,255,1);
+      font-weight: 700;
+    }
+    .likert-row input[type="radio"] { width: auto; accent-color: rgba(120,140,255,0.9); }
+    .scale-ends {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: rgba(255,255,255,0.40);
+      margin-top: 4px;
+    }
+    textarea {
+      width: 100%;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(0,0,0,0.25);
+      color: rgba(255,255,255,0.9);
+      font-size: 14px;
+      resize: vertical;
+      min-height: 70px;
+      outline: none;
+      font-family: inherit;
+    }
+    textarea::placeholder { color: rgba(255,255,255,0.35); }
+  </style>
 </head>
 <body>
-  <h1>Session Summary</h1>
+  <div class="container">
+    <h1>Session Complete</h1>
 
-  <div class="card" id="summary"></div>
-
-  <div class="card">
-    <h3>Post-Session Questionnaire</h3>
-
-    <label>Enjoyment (1-5)</label>
-    <input id="enjoyment" type="number" min="1" max="5" value="3" />
-
-    <label>Frustration (1-5)</label>
-    <input id="frustration" type="number" min="1" max="5" value="3" />
-
-    <label>Effort (1-5)</label>
-    <input id="effort" type="number" min="1" max="5" value="3" />
-
-    <label>Notes (optional)</label>
-    <input id="free" />
-
-    <div class="row" style="margin-top:12px;">
-      <button id="submitQ">Submit Questionnaire</button>
-      <a href="index.html" class="small">Back to Login</a>
+    <!-- Summary stats -->
+    <div class="card" id="summaryCard">
+      <div class="small" style="margin-bottom:4px;">Loading summary...</div>
     </div>
 
-    <p id="status" class="small"></p>
+    <!-- Post-session questionnaire -->
+    <div class="card" style="margin-top:16px;">
+      <h3 style="margin:0 0 6px;">Quick Check-in</h3>
+      <p class="small" style="margin:0 0 18px;">
+        Rate each item honestly (1 = not at all, 5 = very much). Takes about 1 minute.
+      </p>
+
+      <div class="likert-block">
+        <span class="q-label">Overall, how much did you enjoy working through the questions in this session?</span>
+        <div class="likert-row" id="enjoymentRow"></div>
+        <div class="scale-ends"><span>Didn't enjoy it</span><span>Really enjoyed it</span></div>
+      </div>
+
+      <div class="likert-block">
+        <span class="q-label">While working through the questions, did you feel frustrated at any point?</span>
+        <div class="likert-row" id="frustrationRow"></div>
+        <div class="scale-ends"><span>Not at all</span><span>Very frustrated</span></div>
+      </div>
+
+      <div class="likert-block">
+        <span class="q-label">How much effort did you put in overall?</span>
+        <div class="likert-row" id="effortRow"></div>
+        <div class="scale-ends"><span>Barely tried</span><span>Gave it my best</span></div>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <span class="q-label" style="display:block; font-size:15px; font-weight:600; margin-bottom:8px; color:rgba(255,255,255,0.9);">
+          Any other thoughts? (optional)
+        </span>
+        <textarea id="freeText" placeholder="e.g. which topics felt hard, whether the difficulty felt right, anything that helped or didn't..."></textarea>
+      </div>
+
+      <button class="btn-primary" id="submitQ" style="width:100%;">Submit &amp; Continue →</button>
+      <p id="qStatus" class="small" style="margin-top:10px; text-align:center;"></p>
+    </div>
+
+    <div style="margin-top:16px; text-align:center;">
+      <a href="index.html" class="small">← Back to Login</a>
+    </div>
   </div>
 
   <script type="module">
     import { api, loadState } from "./api.js";
 
+    // session guard
     const state = loadState();
+    if (!state.user_id) window.location.href = "index.html";
+
+    // --- build summary card ---
     const s = state.summary || {};
-    document.getElementById("summary").innerHTML = `
-      <div><b>Total Questions:</b> ${s.total_questions ?? "-"}</div>
-      <div><b>Correct:</b> ${s.correct_count ?? "-"}</div>
-      <div class="small">Session ID: ${state.session_id ?? "-"}</div>
+    const accuracy = s.total_questions > 0
+      ? Math.round((s.correct_count / s.total_questions) * 100)
+      : 0;
+
+    document.getElementById("summaryCard").innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-tile">
+          <div class="big">${s.total_questions ?? "-"}</div>
+          <div class="label">Questions</div>
+        </div>
+        <div class="stat-tile">
+          <div class="big">${s.correct_count ?? "-"}</div>
+          <div class="label">Correct</div>
+        </div>
+        <div class="stat-tile">
+          <div class="big">${accuracy}%</div>
+          <div class="label">Accuracy</div>
+        </div>
+      </div>
+      <div class="tiny" style="margin-top:12px; text-align:right;">Session ID: ${state.session_id ?? "-"}</div>
     `;
 
-    document.getElementById("submitQ").onclick = async () => {
-      const payload = {
-        enjoyment: parseInt(document.getElementById("enjoyment").value, 10),
-        frustration: parseInt(document.getElementById("frustration").value, 10),
-        effort: parseInt(document.getElementById("effort").value, 10),
-        free_text: document.getElementById("free").value || ""
-      };
+    // --- build Likert rows ---
+    function buildLikert(containerId, name) {
+      const row = document.getElementById(containerId);
+      row.innerHTML = [1,2,3,4,5].map(v => `
+        <label>
+          <input type="radio" name="${name}" value="${v}" ${v===3?"checked":""}>
+          <span>${v}</span>
+        </label>
+      `).join("");
+    }
+    buildLikert("enjoymentRow",   "enjoyment");
+    buildLikert("frustrationRow", "frustration");
+    buildLikert("effortRow",      "effort");
 
-      const status = document.getElementById("status");
-      status.textContent = "Submitting...";
+    function getRadioVal(name) {
+      const el = document.querySelector(`input[name="${name}"]:checked`);
+      return el ? parseInt(el.value, 10) : 3;
+    }
+
+    // --- submit questionnaire ---
+    document.getElementById("submitQ").onclick = async () => {
+      const qStatus = document.getElementById("qStatus");
+      qStatus.textContent = "Saving...";
+
+      const payload = {
+        enjoyment:   getRadioVal("enjoyment"),
+        frustration: getRadioVal("frustration"),
+        effort:      getRadioVal("effort"),
+        free_text:   document.getElementById("freeText").value.trim(),
+      };
 
       try {
         await api(`/sessions/${state.session_id}/questionnaire?user_id=${state.user_id}`, "POST", payload);
-        status.textContent = "Saved ✅";
+        qStatus.textContent = "✅ Saved! See you next session.";
+        document.getElementById("submitQ").disabled = true;
       } catch (e) {
-        status.textContent = e.message;
+        // If already submitted (400), handle gracefully
+        if (e.message && e.message.includes("already")) {
+          qStatus.textContent = "Already submitted for this session.";
+        } else {
+          qStatus.textContent = `Error: ${e.message}`;
+        }
       }
     };
   </script>

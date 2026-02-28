@@ -5,7 +5,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 
 
-
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -14,6 +13,7 @@ class User(Base):
 
     profile: Mapped["UserProfile"] = relationship(back_populates="user", uselist=False)
     sessions: Mapped[list["Session"]] = relationship(back_populates="user")
+    question_states: Mapped[list["UserQuestionState"]] = relationship(back_populates="user")
 
 
 class UserProfile(Base):
@@ -28,11 +28,30 @@ class UserProfile(Base):
     user: Mapped["User"] = relationship(back_populates="profile")
 
 
+class UserQuestionState(Base):
+    """
+    Tracks each question's status for a given user across all sessions.
+
+    status values:
+      "unseen"   — never attempted (default, not stored — absence = unseen)
+      "correct"  — answered correctly; will not be shown again
+      "retry"    — answered wrong/skipped; will be prioritised next session
+    """
+    __tablename__ = "user_question_states"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id"), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="retry")  # "correct" | "retry"
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped["User"] = relationship(back_populates="question_states")
+
+
 class Question(Base):
     __tablename__ = "questions"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     topic: Mapped[str] = mapped_column(String(64))
-    difficulty: Mapped[int] = mapped_column(Integer)  # 1..3
+    difficulty: Mapped[int] = mapped_column(Integer)  # 1..5
 
     prompt: Mapped[str] = mapped_column(Text)
     options_json: Mapped[str] = mapped_column(Text, default="[]")
@@ -50,25 +69,22 @@ class Session(Base):
 
     session_number: Mapped[int] = mapped_column(Integer, default=1)
     difficulty_level_used: Mapped[int] = mapped_column(Integer, default=1)
+    starting_difficulty: Mapped[int] = mapped_column(Integer, default=1)
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
 
     started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    user: Mapped["User"] = relationship(back_populates="sessions")
-    attempts: Mapped[list["Attempt"]] = relationship(back_populates="session")
-    questionnaire: Mapped["QuestionnaireResponse"] = relationship(back_populates="session", uselist=False)
-    
-        # --- gamification + adaptation state ---
     questions_answered: Mapped[int] = mapped_column(Integer, default=0)
     correct_count: Mapped[int] = mapped_column(Integer, default=0)
-
     xp: Mapped[int] = mapped_column(Integer, default=0)
     streak: Mapped[int] = mapped_column(Integer, default=0)
-
     strong_correct_streak: Mapped[int] = mapped_column(Integer, default=0)
     used_hint_this_session: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    user: Mapped["User"] = relationship(back_populates="sessions")
+    attempts: Mapped[list["Attempt"]] = relationship(back_populates="session")
+    questionnaire: Mapped["QuestionnaireResponse"] = relationship(back_populates="session", uselist=False)
 
 
 class Attempt(Base):
@@ -85,6 +101,7 @@ class Attempt(Base):
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
     hint_level_shown: Mapped[int] = mapped_column(Integer, default=0)
     time_spent_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    skipped: Mapped[bool] = mapped_column(Boolean, default=False)
 
     session: Mapped["Session"] = relationship(back_populates="attempts")
 

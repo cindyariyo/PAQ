@@ -16,10 +16,10 @@ def onboarding_questions():
     return [
         {"id": "Achiever_1", "text": "I feel motivated by mastering hard tasks.", "scale": "1-5"},
         {"id": "Player_1", "text": "Rewards and points motivate me.", "scale": "1-5"},
-        {"id": "Socialiser_1", "text": "I like learning with others / comparing progress.", "scale": "1-5"},
-        {"id": "FreeSpirit_1", "text": "I like freedom and exploring different paths.", "scale": "1-5"},
+        {"id": "Socialiser_1", "text": "I like learning with others and comparing progress.", "scale": "1-5"},
+        {"id": "FreeSpirit_1", "text": "I like having options and exploring different paths.", "scale": "1-5"},
         {"id": "Philanthropist_1", "text": "I enjoy helping others succeed.", "scale": "1-5"},
-        {"id": "Disruptor_1", "text": "I like changing/improving systems.", "scale": "1-5"},
+        {"id": "Disruptor_1", "text": "I enjoy changing/improving learning systems.", "scale": "1-5"},
     ]
 
 

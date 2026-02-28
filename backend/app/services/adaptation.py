@@ -1,8 +1,7 @@
 def hint_level_from_rules(time_spent: int, retry_count: int, current_hint_level: int) -> int:
     """
-    Design rules:
-    - Hint 1 if time > 45s OR retry_count >= 2
-    - Hint 2 if time > 75s OR retry_count >= 3
+    Hint 1 if time > 45s OR retry_count >= 2
+    Hint 2 if time > 75s OR retry_count >= 3
     """
     level = current_hint_level
     if time_spent > 75 or retry_count >= 3:
@@ -12,28 +11,58 @@ def hint_level_from_rules(time_spent: int, retry_count: int, current_hint_level:
     return level
 
 
-def update_difficulty(session, *, correct: bool, time_spent: int, retries: int, used_hint: bool, hexad: str):
-    # Decrease rule (design chapter)
-    if (not correct and retries >= 2) or (time_spent > 90):
+def update_difficulty(
+    session,
+    *,
+    correct: bool,
+    time_spent: int,
+    retries: int,
+    used_hint: bool,
+    hexad: str,
+    session_floor: int = 1,
+):
+    """
+    Adapts difficulty_level_used on the session object after each answer.
+
+    Rules:
+    - Decrease if: wrong after >=2 retries OR time > 90s
+      Floor: never below session_floor (which is max(1, starting_level - 1))
+    - Increase if: 2 consecutive strong-correct answers (correct + no hint + <40s)
+      Achiever: only needs 1 strong correct to level up
+      Free Spirit: offered optional harder instead of forced increase
+    - Max level: 5
+
+    session_floor is passed in from the router so this function stays pure.
+    """
+    current = session.difficulty_level_used
+
+    # ── Decrease ──
+    struggling = (not correct and retries >= 2) or (time_spent > 90)
+    if struggling:
         session.strong_correct_streak = 0
-        return max(1, session.difficulty_level - 1), "Difficulty decreased (support mode)."
+        new_level = max(session_floor, current - 1)
+        if new_level < current:
+            return new_level, "Difficulty decreased. Take your time."
+        return current, ""  # already at floor, no message
 
-    # Strong correct definition for increase rule
+    # ── Strong correct ──
     strong_correct = correct and (not used_hint) and (time_spent < 40)
-
     if strong_correct:
         session.strong_correct_streak += 1
     else:
         session.strong_correct_streak = 0
 
-    # Hexad variation: Achiever increases after one strong performance sequence
-    required_streak = 1 if hexad == "Achiever" else 2
+    required = 1 if hexad == "Achiever" else 2
 
-    if session.strong_correct_streak >= required_streak:
+    if session.strong_correct_streak >= required:
         session.strong_correct_streak = 0
-        # Free Spirit: offer harder rather than forcing
-        if hexad == "Free Spirit":
-            return session.difficulty_level, "Optional harder question available."
-        return min(3, session.difficulty_level + 1), "Difficulty increased!"
 
-    return session.difficulty_level, "Difficulty unchanged."
+        if hexad == "Free Spirit":
+            return current, "Optional harder question available, take it if you feel ready."
+
+        new_level = min(5, current + 1)
+        if new_level > current:
+            return new_level, "Difficulty increased. Great work!"
+        return current, "You're at the top level. Excellent!"
+
+    return current, ""

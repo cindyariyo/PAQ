@@ -1,469 +1,509 @@
-﻿<!-- <!doctype html>
+﻿<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
   <title>Quiz</title>
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* ── Hint card ── */
+    .hint-card {
+      border-radius: 14px;
+      border: 1px solid rgba(255,200,60,0.0);
+      background: rgba(255,180,0,0.0);
+      padding: 0; max-height: 0; overflow: hidden; opacity: 0;
+      transition: max-height 0.45s ease, opacity 0.4s ease,
+        padding 0.35s ease, border-color 0.4s ease,
+        background 0.4s ease, box-shadow 0.4s ease;
+    }
+    .hint-card.visible {
+      max-height: 200px; opacity: 1; padding: 14px 16px;
+      border-color: rgba(255,200,60,0.35);
+      background: rgba(255,180,0,0.07);
+    }
+    .hint-card.glow-1 {
+      border-color: rgba(255,210,60,0.7); background: rgba(255,190,0,0.12);
+      box-shadow: 0 0 18px rgba(255,200,40,0.25), 0 0 6px rgba(255,200,40,0.15) inset;
+    }
+    .hint-card.glow-2 {
+      border-color: rgba(255,160,30,0.85); background: rgba(255,150,0,0.16);
+      box-shadow: 0 0 28px rgba(255,160,20,0.40), 0 0 10px rgba(255,160,20,0.20) inset;
+    }
+    @keyframes hintPulse {
+      0%   { box-shadow: 0 0 18px rgba(255,200,40,0.25); }
+      50%  { box-shadow: 0 0 32px rgba(255,200,40,0.55); }
+      100% { box-shadow: 0 0 18px rgba(255,200,40,0.25); }
+    }
+    .hint-card.pulse-in { animation: hintPulse 0.7s ease; }
+    .hint-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
+      text-transform: uppercase; color: rgba(255,200,60,0.8); margin-bottom: 6px;
+    }
+    .hint-text { font-size: 14px; line-height: 1.6; color: rgba(255,255,255,0.88); }
+    .hint-more-btn {
+      display: none; margin-top: 10px; font-size: 12px;
+      color: rgba(255,200,60,0.7); background: none;
+      border: 1px solid rgba(255,200,60,0.3); border-radius: 8px;
+      padding: 4px 10px; cursor: pointer;
+      transition: color 0.2s, border-color 0.2s, background 0.2s;
+    }
+    .hint-more-btn:hover {
+      color: rgba(255,220,80,1); border-color: rgba(255,220,80,0.6);
+      background: rgba(255,200,40,0.08); transform: none;
+    }
+    .hint-more-btn.visible { display: inline-block; }
+
+    /* ── Feedback ── */
+    .feedback-box {
+      padding: 12px 16px; border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.18);
+      font-size: 14px; line-height: 1.6; display: none;
+    }
+    .feedback-box.correct  { border-color: rgba(0,220,140,0.45); background: rgba(0,180,100,0.10); }
+    .feedback-box.incorrect{ border-color: rgba(255,100,100,0.40); background: rgba(180,40,40,0.10); }
+    .feedback-msg  { font-weight: 700; margin-bottom: 5px; font-size: 15px; }
+    .feedback-expl { color: rgba(255,255,255,0.80); }
+    .feedback-nudge{ margin-top: 7px; color: rgba(255,200,80,0.85); font-size: 13px; font-style: italic; }
+
+    /* ── Progress ── */
+    .progress {
+      height: 5px; border-radius: 99px;
+      background: rgba(255,255,255,0.10); overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%; border-radius: 99px;
+      background: linear-gradient(90deg, rgba(120,140,255,0.8), rgba(0,220,200,0.7));
+      transition: width 0.4s ease; width: 0%;
+    }
+
+    /* ── Tips strip ── */
+    .tips-strip {
+      margin-top: 1px; padding: 10px 16px;
+      border-radius: 14px; border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+    }
+    .tips-title {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
+      text-transform: uppercase; color: rgba(255,255,255,0.45); margin-bottom: 5px;
+    }
+    .tips-strip ul {
+      margin: 0; padding-left: 18px;
+    }
+    .tips-strip li { font-size: 13px; color: rgba(255,255,255,0.62); line-height: 1.65; }
+
+    /* ── Next wrap ── */
+    .next-wrap { display: none; }
+    .next-wrap.visible { display: block; }
+
+    /* ── Diff msg ── */
+    .diff-msg { font-size: 12px; color: rgba(255,255,255,0.45); min-height: 4px; }
+
+    /* ── Toast ── */
+    #toastEl {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: rgba(20,24,48,0.97); border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 14px; padding: 10px 20px; font-size: 14px; font-weight: 600;
+      pointer-events: none; opacity: 0; transition: opacity 0.25s ease; z-index: 100; white-space: nowrap;
+    }
+    #toastEl.show { opacity: 1; }
+
+    #hintBtn { font-size: 13px; border-color: rgba(255,200,60,0.4); color: rgba(255,210,80,0.9); }
+    #hintBtn:hover { background: rgba(255,200,40,0.10); }
+    #hintBtn:disabled { opacity: 0.35; cursor: default; transform: none; }
+    #finishBtn { font-size: 13px; opacity: 0.6; }
+
+    .sp { margin-top: 10px; }
+  </style>
 </head>
 <body>
-  <h1>Quiz Session</h1>
+<div class="container">
+  <h1 style="margin-bottom:12px;">Quiz Session</h1>
 
-  <div class="card">
-    <div class="small" id="meta"></div>
-    <hr />
-    <pre id="prompt"></pre>
+  <div class="card" id="card" style="padding:16px 20px;">
 
-    <div id="options"></div>
-
-    <div class="row" style="margin-top:12px;">
-      <button id="hintBtn">Hint</button>
-      <button id="submitBtn">Submit Answer</button>
-      <button id="finishBtn">Finish Session</button>
+    <!-- ── HUD row: Level · XP · Streak ── -->
+    <div class="row" style="justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:0;">
+      <div class="chips">
+        <div class="chip" id="chipLevel" style="font-size:15px; font-weight:700; padding:10px 14px;">🧩 Level 1</div>
+        <div class="statRow">
+          <div class="stat" style="padding:8px 12px; min-width:0;">
+            <div>⭐</div>
+            <div><div class="big" id="xpVal" style="font-size:16px;">0</div><div class="label">XP</div></div>
+          </div>
+          <div class="stat" style="padding:8px 12px; min-width:0;">
+            <div>🔥</div>
+            <div><div class="big" id="streakVal" style="font-size:16px;">0</div><div class="label">Streak</div></div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <p class="small" id="hintArea"></p>
-    <p class="small" id="feedback"></p>
-  </div>
+    <!-- ── Hexad badge + progress bar ── -->
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:8px; margin-bottom:10px;">
+      <span id="hexadBadge" style="
+        font-size:12px; font-weight:600; color:rgba(255,255,255,0.55);
+        background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12);
+        border-radius:8px; padding:3px 10px; white-space:nowrap;">Hexad: —</span>
+      <div style="flex:1; min-width:120px; max-width:240px;">
+        <div class="tiny" id="progressText" style="margin-bottom:3px; color:rgba(255,255,255,0.40);">0 / 7</div>
+        <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+      </div>
+    </div>
 
-  <script type="module">
-    import { api, loadState, saveState } from "./api.js";
+    <hr style="margin:0 0 12px;" />
 
-    const state = loadState();
+    <!-- ── Question prompt ── -->
+    <pre id="prompt" style="margin:0 0 10px; font-size:14px; line-height:1.6;">Loading question...</pre>
 
-    let sessionId = null;
-    let currentQuestion = null;
+    <!-- ── Answer options ── -->
+    <div id="options"></div>
 
-    let startTime = null;
-    let retryCount = 0;
-    let hintLevelShown = 0;
-    let difficulty = 1;
+    <!-- ── Hint card — hidden until triggered ── -->
+    <div class="hint-card sp" id="hintCard">
+      <div class="hint-label" id="hintLabel">💡 Hint</div>
+      <div class="hint-text"  id="hintText"></div>
+      <button class="hint-more-btn" id="hintMoreBtn">Try a more detailed hint →</button>
+    </div>
 
-    const meta = document.getElementById("meta");
-    const prompt = document.getElementById("prompt");
-    const optionsDiv = document.getElementById("options");
-    const hintArea = document.getElementById("hintArea");
-    const feedback = document.getElementById("feedback");
+    <!-- ── Action buttons ── -->
+    <div class="row sp" style="gap:10px; flex-wrap:wrap;">
+      <button id="hintBtn">💡 Hint</button>
+      <button class="btn-primary" id="submitBtn">Submit Answer</button>
+      <button id="finishBtn">🏁 Finish</button>
+    </div>
 
-    function renderQuestion(q) {
-      currentQuestion = q;
-      retryCount = 0;
-      hintLevelShown = 0;
-      hintArea.textContent = "";
-      feedback.textContent = "";
-      startTime = Date.now();
+    <!-- ── Feedback box — hidden until answer submitted ── -->
+    <div class="feedback-box sp" id="feedbackBox">
+      <div class="feedback-msg"   id="feedbackMsg"></div>
+      <div class="feedback-expl"  id="feedbackExpl"></div>
+      <div class="feedback-nudge" id="feedbackNudge"></div>
+    </div>
 
-      prompt.textContent = q.prompt;
-      optionsDiv.innerHTML = q.options.map(opt => `
-        <label><input type="radio" name="ans" value="${opt}"> ${opt}</label>
-      `).join("");
-    }
+    <div class="diff-msg sp" id="diffMsg"></div>
 
-    function selectedAnswer() {
-      const el = document.querySelector('input[name="ans"]:checked');
-      return el ? el.value : "";
-    }
+    <div class="next-wrap sp" id="nextWrap">
+      <button class="btn-primary" id="nextBtn" style="width:100%;">Next Question →</button>
+    </div>
 
-    async function start() {
-      const out = await api("/sessions/start", "POST", { user_id: state.user_id });
-      sessionId = out.session_id;
-      difficulty = out.difficulty_level;
+    <p id="err" class="small" style="color:rgba(255,100,100,0.8); margin-top:2px; min-height:4px;"></p>
 
-      saveState({ ...state, session_id: sessionId, settings: out.settings, hexad_type: out.hexad_type });
+    <!-- ── Tips strip — compact, full width, at bottom ── -->
+    <div class="tips-strip">
+      <div class="tips-title" id="tipsTitle">Tips</div>
+      <ul id="tipsList"></ul>
+    </div>
 
-      meta.textContent = `StudyCode: ${state.study_code} | Hexad: ${out.hexad_type} | Difficulty: ${difficulty} | Session: ${sessionId}`;
-      renderQuestion(out.question);
-    }
+  </div><!-- /card -->
+</div><!-- /container -->
 
-    document.getElementById("hintBtn").onclick = async () => {
-      const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+<div id="toastEl"></div>
+
+<script type="module">
+  import { api, loadState, saveState } from "./api.js";
+
+  const state = loadState();
+  if (!state.user_id) { window.location.href = "index.html"; }
+
+  const chipLevel    = document.getElementById("chipLevel");
+  const progressText = document.getElementById("progressText");
+  const progressBar  = document.getElementById("progressBar");
+  const hexadBadge   = document.getElementById("hexadBadge");
+  const prompt       = document.getElementById("prompt");
+  const optionsDiv   = document.getElementById("options");
+  const hintCard     = document.getElementById("hintCard");
+  const hintLabel    = document.getElementById("hintLabel");
+  const hintText     = document.getElementById("hintText");
+  const hintMoreBtn  = document.getElementById("hintMoreBtn");
+  const hintBtn      = document.getElementById("hintBtn");
+  const submitBtn    = document.getElementById("submitBtn");
+  const feedbackBox  = document.getElementById("feedbackBox");
+  const feedbackMsg  = document.getElementById("feedbackMsg");
+  const feedbackExpl = document.getElementById("feedbackExpl");
+  const feedbackNudge= document.getElementById("feedbackNudge");
+  const diffMsg      = document.getElementById("diffMsg");
+  const nextWrap     = document.getElementById("nextWrap");
+  const nextBtn      = document.getElementById("nextBtn");
+  const finishBtn    = document.getElementById("finishBtn");
+  const err          = document.getElementById("err");
+  const toastEl      = document.getElementById("toastEl");
+
+  let sessionId       = null;
+  let currentQuestion = null;
+  let pendingQuestion = null;
+  let startTime       = null;
+  let retryCount      = 0;
+  let hintLevelShown  = 0;
+  let answered        = false;
+  let timerHandle     = null;
+
+  let toastTimer = null;
+  function showToast(msg, duration = 3000) {
+    if (!msg) return;
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove("show"), duration);
+  }
+
+  function updateHUD(data) {
+    const lvl = data.updated_difficulty_level ?? data.difficulty_level ?? 1;
+    chipLevel.textContent = `🧩 Level ${lvl}`;
+    document.getElementById("xpVal").textContent     = data.xp ?? 0;
+    document.getElementById("streakVal").textContent = data.streak ?? 0;
+    const done  = data.questions_answered ?? 0;
+    const total = data.session_total_questions ?? 7;
+    progressText.textContent = `${done} / ${total}`;
+    progressBar.style.width  = `${Math.round((done / total) * 100)}%`;
+  }
+
+  function showHintCard(level, text) {
+    hintCard.classList.remove("glow-1", "glow-2", "pulse-in");
+    hintLabel.textContent = level === 1 ? "💡 Hint" : "💡 Detailed Hint";
+    hintText.textContent  = text;
+    hintCard.classList.add("visible");
+    void hintCard.offsetWidth;
+    hintCard.classList.add(level === 1 ? "glow-1" : "glow-2", "pulse-in");
+    setTimeout(() => hintCard.classList.remove("pulse-in"), 800);
+    hintMoreBtn.classList.toggle("visible", level === 1);
+  }
+
+  function hideHintCard() {
+    hintCard.classList.remove("visible", "glow-1", "glow-2", "pulse-in");
+    hintMoreBtn.classList.remove("visible");
+    hintLevelShown = 0;
+  }
+
+  // Hint thresholds scale with difficulty level:
+  // Levels 1-2: 45s / 75s  (standard)
+  // Level 3:    55s / 85s  (+10s)
+  // Level 4:    65s / 95s  (+20s)
+  // Level 5:    75s / 105s (+30s)
+  // Hint trigger thresholds by difficulty level:
+  // Level 1: hint1=45s,  hint2=75s
+  // Level 2: hint1=45s,  hint2=75s
+  // Level 3: hint1=55s,  hint2=85s
+  // Level 4: hint1=80s,  hint2=110s
+  // Level 5: hint1=110s, hint2=140s
+  function hintThresholds(level) {
+    const thresholds = {
+      1: { h1: 45,  h2: 75  },
+      2: { h1: 45,  h2: 75  },
+      3: { h1: 55,  h2: 85  },
+      4: { h1: 80,  h2: 110 },
+      5: { h1: 110, h2: 140 },
+    };
+    return thresholds[level] ?? { h1: 45, h2: 75 };
+  }
+
+  function startHintTimer() {
+    clearInterval(timerHandle);
+    timerHandle = setInterval(async () => {
+      if (answered || !currentQuestion || !sessionId) return;
+      const elapsed  = Math.floor((Date.now() - startTime) / 1000);
+      const level    = currentQuestion.difficulty || 1;
+      const { h1, h2 } = hintThresholds(level);
+      if (elapsed >= h1 && hintLevelShown < 1) await fetchAndShowHint(1, true);
+      if (elapsed >= h2 && hintLevelShown < 2) await fetchAndShowHint(2, true);
+    }, 5000);
+  }
+
+  async function fetchAndShowHint(targetLevel, auto = false) {
+    if (hintLevelShown >= targetLevel) return;
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    try {
       const out = await api(
-        `/sessions/${sessionId}/hint?user_id=${state.user_id}&question_id=${currentQuestion.id}&time_spent_seconds=${timeSpent}&retry_count=${retryCount}&current_hint_level=${hintLevelShown}`,
+        `/sessions/${sessionId}/hint` +
+        `?user_id=${state.user_id}` +
+        `&question_id=${currentQuestion.id}` +
+        `&time_spent_seconds=${elapsed}` +
+        `&retry_count=${retryCount}` +
+        `&current_hint_level=${hintLevelShown}`,
         "POST"
       );
       hintLevelShown = out.hint_level;
-      hintArea.textContent = `Hint ${out.hint_level}: ${out.hint_text}`;
+      showHintCard(out.hint_level, out.hint_text);
+      if (auto && targetLevel === 1) showToast("💡 Hint appeared — taking a while?");
+    } catch (_) { /* silent */ }
+  }
+
+  function renderQuestion(q) {
+    currentQuestion  = q;
+    pendingQuestion  = null;
+    retryCount       = 0;
+    answered         = false;
+    startTime        = Date.now();
+
+    hideHintCard();
+    feedbackBox.style.display = "none";
+    feedbackBox.className     = "feedback-box sp";
+    feedbackMsg.textContent   = "";
+    feedbackExpl.textContent  = "";
+    feedbackNudge.textContent = "";
+    diffMsg.textContent       = "";
+    nextWrap.classList.remove("visible");
+    err.textContent           = "";
+
+    hintBtn.disabled      = false;
+    hintBtn.textContent   = "💡 Hint";
+    submitBtn.disabled    = false;
+    submitBtn.textContent = "Submit Answer";
+
+    prompt.textContent = q.prompt;
+    optionsDiv.innerHTML = q.options.map(opt => {
+      const escaped = opt.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+      return `<label class="option"><input type="radio" name="ans" value="${escaped}"><span>${opt}</span></label>`;
+    }).join("");
+
+    startHintTimer();
+  }
+
+  function selectedAnswer() {
+    const el = document.querySelector('input[name="ans"]:checked');
+    return el ? el.value : "";
+  }
+
+  function applyHexadUI(hexad) {
+    const tips = {
+      "Player":        ["Go for quick wins — fast + correct = level up.", "Try one attempt before hints for max XP.", "Keep streaks alive to farm XP."],
+      "Achiever":      ["No-hint + under 40s answers level you up faster.", "Use hints only as a last resort.", "Focus on accuracy over speed."],
+      "Socialiser":    ["Hints are normal — many learners use them.", "Steady progress matters more than speed.", "Review explanations to improve over time."],
+      "Free Spirit":   ["Explore different approaches before hints.", "Optional harder questions may appear — take them if ready.", "Speed matters less than experimenting."],
+      "Philanthropist":["Use hints to understand the concept, not just the answer.", "Read explanations carefully.", "Consistency wins."],
+      "Disruptor":     ["Try an alternative method if your first fails.", "Trace with small examples mentally.", "Use Hint 1 then attempt immediately."],
+      "Unknown":       ["Answer quickly + correctly to level up.", "Hints help but reduce your strong-correct streak.", "Streak boosts momentum."],
     };
+    document.getElementById("tipsTitle").textContent = `${hexad} Tips`;
+    document.getElementById("tipsList").innerHTML =
+      (tips[hexad] || tips["Unknown"]).map(t => `<li>${t}</li>`).join("");
+  }
 
-    document.getElementById("submitBtn").onclick = async () => {
-      const ans = selectedAnswer();
-      if (!ans) { feedback.textContent = "Pick an answer first."; return; }
+  async function start() {
+    try {
+      const out = await api("/sessions/start", "POST", { user_id: state.user_id });
+      sessionId = out.session_id;
+      saveState({ ...state, session_id: sessionId, hexad_type: out.hexad_type, settings: out.settings });
+      hexadBadge.textContent = `${out.hexad_type}  ·  Session #${sessionId}`;
+      applyHexadUI(out.hexad_type);
+      updateHUD(out);
+      renderQuestion(out.question);
+      showToast("🎮 Session started! Earn XP and build a streak.");
+    } catch (e) {
+      err.textContent = e?.message || "Could not start session. Is the backend running?";
+    }
+  }
 
-      const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+  hintBtn.onclick = async () => {
+    err.textContent = "";
+    if (!sessionId || !currentQuestion || answered) return;
+    await fetchAndShowHint(hintLevelShown >= 1 ? 2 : 1);
+    if (hintLevelShown >= 2) {
+      hintBtn.disabled    = true;
+      hintBtn.textContent = "💡 Max hint shown";
+    }
+  };
 
+  hintMoreBtn.onclick = async () => {
+    await fetchAndShowHint(2);
+    hintMoreBtn.classList.remove("visible");
+  };
+
+  submitBtn.onclick = async () => {
+    err.textContent = "";
+    const ans = selectedAnswer();
+    if (!ans) { err.textContent = "Pick an answer first."; return; }
+    if (answered) return;
+
+    const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+    submitBtn.disabled = true;
+
+    try {
       const out = await api(`/sessions/${sessionId}/answer`, "POST", {
-        user_id: state.user_id,
-        question_id: currentQuestion.id,
-        answer: ans,
+        user_id:            state.user_id,
+        question_id:        currentQuestion.id,
+        answer:             ans,
         time_spent_seconds: timeSpent,
-        retry_count: retryCount,
-        hint_level_shown: hintLevelShown
+        retry_count:        retryCount,
+        hint_level_shown:   hintLevelShown,
       });
 
-      difficulty = out.updated_difficulty_level;
+      updateHUD(out);
+      feedbackBox.style.display = "block";
 
       if (out.correct) {
-        feedback.textContent = `✅ Correct. ${out.explanation}`;
+        answered = true;
+        clearInterval(timerHandle);
+        feedbackBox.classList.add("correct");
+        feedbackMsg.textContent  = out.feedback_message;
+        feedbackExpl.textContent = out.explanation;
+        feedbackNudge.textContent= "";
+        if (out.difficulty_message) diffMsg.textContent = out.difficulty_message;
+        if (out.next_question) {
+          pendingQuestion = out.next_question;
+          nextWrap.classList.add("visible");
+        } else {
+          diffMsg.textContent += (diffMsg.textContent ? "  ·  " : "") + "🏁 Session complete — click Finish.";
+        }
       } else {
-        feedback.textContent = `❌ Incorrect. ${out.explanation}`;
         retryCount += 1;
+        feedbackBox.classList.add("incorrect");
+        feedbackMsg.textContent  = out.feedback_message;
+        feedbackExpl.textContent = "";
+
+        if (retryCount >= 2) {
+          await fetchAndShowHint(1);
+          if (hintText.textContent) {
+            feedbackNudge.textContent = `→ ${hintText.textContent.replace(/^.*?:\s*/, "")}`;
+          }
+        }
+
+        if (retryCount >= 2 && hintLevelShown > 0) {
+          feedbackNudge.textContent += "\n\nThis question will come back next session. Moving on...";
+          submitBtn.disabled = true;
+          setTimeout(() => doSkip(), 2200);
+        } else {
+          submitBtn.disabled    = false;
+          submitBtn.textContent = "Try Again";
+        }
       }
+    } catch (e) {
+      submitBtn.disabled = false;
+      err.textContent = e?.message || "Submission failed.";
+    }
+  };
 
-      meta.textContent = `StudyCode: ${state.study_code} | Hexad: ${state.hexad_type} | Difficulty: ${difficulty} | Session: ${sessionId}`;
-
+  async function doSkip() {
+    try {
+      const out = await api(
+        `/sessions/${sessionId}/skip?user_id=${state.user_id}&question_id=${currentQuestion.id}`,
+        "POST"
+      );
       if (out.next_question) {
-        setTimeout(() => renderQuestion(out.next_question), 600);
+        renderQuestion(out.next_question);
       } else {
-        feedback.textContent += " (Session limit reached — click Finish Session.)";
+        clearInterval(timerHandle);
+        diffMsg.textContent = "🏁 Session complete — click Finish.";
+        submitBtn.disabled  = true;
       }
-    };
+    } catch (e) {
+      err.textContent = e?.message || "Skip failed.";
+    }
+  }
 
-    document.getElementById("finishBtn").onclick = async () => {
+  nextBtn.onclick = () => { if (pendingQuestion) renderQuestion(pendingQuestion); };
+
+  finishBtn.onclick = async () => {
+    err.textContent = "";
+    clearInterval(timerHandle);
+    try {
       const out = await api(`/sessions/${sessionId}/finish?user_id=${state.user_id}`, "POST");
       saveState({ ...state, session_id: sessionId, summary: out });
       window.location.href = "summary.html";
-    };
-
-    start();
-  </script>
-</body>
-</html> -->
-
-
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Quiz</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <div class="container">
-    <h1>Quiz Session</h1>
-
-    <div class="card" id="card">
-      <div class="hud">
-        <div class="chips">
-          <div class="chip" id="chipLevel">🧩 Level 1</div>
-
-          <div class="statRow">
-            <div class="stat" id="statXP">
-              <div>⭐</div>
-              <div>
-                <div class="big" id="xpVal">0</div>
-                <div class="label">XP</div>
-              </div>
-            </div>
-
-            <div class="stat" id="statStreak">
-              <div>🔥</div>
-              <div>
-                <div class="big" id="streakVal">0</div>
-                <div class="label">Streak</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-
-        <div class="progressBox">
-          <div class="tiny" id="progressText">0 / 7</div>
-          <div class="progress">
-            <div class="progress-bar" id="progressBar"></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="tiny" id="meta"></div>
-      <hr />
-
-      <div class="grid2">
-        <div>
-          <pre id="prompt">Loading question...</pre>
-          <div id="options"></div>
-
-          <div class="row" style="margin-top:12px;">
-            <button id="hintBtn">Hint</button>
-            <button class="btn-primary" id="submitBtn">Submit Answer</button>
-            <button id="finishBtn">Finish</button>
-          </div>
-
-          <div class="toast" id="rewardFeed" style="display:block;"></div>
-          <div class="toast" id="toast"></div>
-          <p class="small" id="hintArea"></p>
-          <p class="small" id="feedback"></p>
-          <p class="small" id="err"></p>
-        </div>
-
-        <div class="card sidePanel" style="background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.10);">
-          <div class="small"><b id="tipsTitle">Session Tips</b></div>
-          <ul class="small" id="tipsList" style="margin:10px 0 0; padding-left: 18px; color: rgba(255,255,255,0.75);"></ul>
-
-          <hr />
-
-          <div class="small"><b>Rewards</b></div>
-          <div class="small" id="rewardPanel" style="color: rgba(255,255,255,0.75); margin-top:8px;">
-            Earn XP, build streaks, and unlock badges.
-          </div>
-
-          <hr />
-
-          <div class="tiny" id="hexadNote"></div>
-
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script type="module">
-    import { api, loadState, saveState } from "./api.js";
-
-    const state = loadState();
-    const card = document.getElementById("card");
-
-    let sessionId = state.session_id || null;
-    let currentQuestion = null;
-
-    let startTime = null;
-    let retryCount = 0;
-    let hintLevelShown = 0;
-
-    // HUD elements
-    const chipLevel = document.getElementById("chipLevel");
-    const chipXP = document.getElementById("chipXP");
-    const chipStreak = document.getElementById("chipStreak");
-    const progressText = document.getElementById("progressText");
-    const progressBar = document.getElementById("progressBar");
-
-    const meta = document.getElementById("meta");
-    const prompt = document.getElementById("prompt");
-    const optionsDiv = document.getElementById("options");
-    const hintArea = document.getElementById("hintArea");
-    const feedback = document.getElementById("feedback");
-    const err = document.getElementById("err");
-    const toast = document.getElementById("toast");
-    const hexadNote = document.getElementById("hexadNote");
-
-    function showToast(msg) {
-      if (!msg) return;
-      toast.textContent = msg;
-      toast.style.display = "block";
-      clearTimeout(window._toastTimer);
-      window._toastTimer = setTimeout(() => (toast.style.display = "none"), 2300);
+    } catch (e) {
+      err.textContent = e?.message || "Could not finish session.";
     }
+  };
 
-    function pulse() {
-      card.classList.remove("pulse");
-      void card.offsetWidth;
-      card.classList.add("pulse");
-    }
-
-    function updateHUD(data) {
-      const lvl = data.updated_difficulty_level ?? data.difficulty_level ?? 1;
-      chipLevel.textContent = `🧩 Level ${lvl}`;
-
-      const xp = data.xp ?? 0;
-      const streak = data.streak ?? 0;
-
-      document.getElementById("xpVal").textContent = xp;
-      document.getElementById("streakVal").textContent = streak;
-
-      const done = data.questions_answered ?? 0;
-      const total = data.session_total_questions ?? 7;
-      progressText.textContent = `${done} / ${total}`;
-      progressBar.style.width = `${Math.round((done / total) * 100)}%`;
-    }
-
-
-    function renderQuestion(q) {
-      currentQuestion = q;
-      retryCount = 0;
-      hintLevelShown = 0;
-      hintArea.textContent = "";
-      feedback.textContent = "";
-      err.textContent = "";
-      startTime = Date.now();
-
-      prompt.textContent = q.prompt;
-      optionsDiv.innerHTML = q.options.map(opt => `
-        <label class="option">
-          <input type="radio" name="ans" value="${opt}">
-          <span>${opt}</span>
-        </label>
-      `).join("");
-    }
-
-    function selectedAnswer() {
-      const el = document.querySelector('input[name="ans"]:checked');
-      return el ? el.value : "";
-    }
-
-    
-    function applyHexadUI(hexad){
-      const tipsList = document.getElementById("tipsList");
-      const tipsTitle = document.getElementById("tipsTitle");
-      const rewardPanel = document.getElementById("rewardPanel");
-
-      const tipsByHexad = {
-        "Player": [
-          "Go for quick wins: fast + correct = level up.",
-          "Hints are fine, but try one attempt first for bonus XP.",
-          "Keep streaks alive to “farm” XP."
-        ],
-        "Achiever": [
-          "Aim for strong correct answers (no hint + <40s) to level up faster.",
-          "Use Hint 1 as a last resort; keep mastery high.",
-          "Track accuracy: focus on consistency."
-        ],
-        "Socialiser": [
-          "Hints are normal — many learners use them on tricky items.",
-          "Focus on steady progress over speed.",
-          "Review explanations to improve over time."
-        ],
-        "Free Spirit": [
-          "Explore: try different approaches before using hints.",
-          "Optional harder questions may appear — take them if you feel ready.",
-          "Speed matters less than experimenting."
-        ],
-        "Philanthropist": [
-          "Use hints to learn the concept, not just the answer.",
-          "Read explanations carefully to build long-term understanding.",
-          "Progress steadily; consistency wins."
-        ],
-        "Disruptor": [
-          "Try an alternative method if your first approach fails.",
-          "Test edge cases mentally; trace with small examples.",
-          "If stuck, use Hint 1 then attempt immediately."
-        ],
-        "Unknown": [
-          "Answer quickly + correctly to level up.",
-          "Hints help, but reduce “strong correct” streak.",
-          "Streak boosts your momentum."
-        ]
-      };
-
-      const rewardsByHexad = {
-        "Player": "🏆 Rewards focus: XP bursts + streak bonuses.",
-        "Achiever": "📈 Rewards focus: mastery + level-ups.",
-        "Socialiser": "🤝 Rewards focus: supportive feedback + reassurance.",
-        "Free Spirit": "🧭 Rewards focus: exploration + optional challenge.",
-        "Philanthropist": "💛 Rewards focus: learning progress + helpful nudges.",
-        "Disruptor": "🛠 Rewards focus: alternative strategies + experimentation.",
-        "Unknown": "🎮 Rewards focus: XP + streak + level."
-      };
-
-      tipsTitle.textContent = `${hexad} Tips`;
-      tipsList.innerHTML = (tipsByHexad[hexad] || tipsByHexad["Unknown"])
-        .map(t => `<li>${t}</li>`).join("");
-      rewardPanel.textContent = rewardsByHexad[hexad] || rewardsByHexad["Unknown"];
-    }
-
-async function start() {
-      try {
-        if (!state.user_id) {
-          err.textContent = "Missing user_id. Go back to login.";
-          return;
-        }
-
-        const out = await api("/sessions/start", "POST", { user_id: state.user_id });
-        applyHexadUI(out.hexad_type);
-        hexadNote.textContent = "";
-
-        sessionId = out.session_id;
-
-        saveState({ ...state, session_id: sessionId, hexad_type: out.hexad_type, settings: out.settings });
-
-        meta.textContent = `StudyCode: ${state.study_code} | Hexad: ${out.hexad_type} | Session: ${sessionId}`;
-        hexadNote.textContent = `Hexad framing: ${out.hexad_type} (messages + hints are tailored).`;
-
-        updateHUD(out);
-        renderQuestion(out.question);
-        showToast("🎮 Session started! Earn XP and build a streak.");
-      } catch (e) {
-        err.textContent = e?.message ? e.message : JSON.stringify(e);
-      }
-    }
-
-    
-    document.getElementById("hintBtn").onclick = async () => {
-      err.textContent = "";
-      if (!sessionId || !currentQuestion) return;
-
-      const timeSpent = Math.floor((Date.now() - startTime) / 1000);
-
-      try {
-        const out = await api(
-          `/sessions/${sessionId}/hint?user_id=${state.user_id}&question_id=${currentQuestion.id}` +
-          `&time_spent_seconds=${timeSpent}&retry_count=${retryCount}&current_hint_level=${hintLevelShown}`,
-          "POST"
-        );
-        hintLevelShown = out.hint_level;
-        hintArea.textContent = `Hint ${out.hint_level}: ${out.hint_text}`;
-        showToast("💡 Hint shown.");
-      } catch (e) {
-        err.textContent = e?.message ? e.message : JSON.stringify(e);
-      }
-    };
-
-    document.getElementById("submitBtn").onclick = async () => {
-      err.textContent = "";
-      const ans = selectedAnswer();
-      if (!ans) { feedback.textContent = "Pick an answer first."; return; }
-
-      const timeSpent = Math.floor((Date.now() - startTime) / 1000);
-
-      try {
-        const out = await api(`/sessions/${sessionId}/answer`, "POST", {
-          user_id: state.user_id,
-          question_id: currentQuestion.id,
-          answer: ans,
-          time_spent_seconds: timeSpent,
-          retry_count: retryCount,
-          hint_level_shown: hintLevelShown
-        });
-
-        updateHUD(out);
-        pulse();
-
-            // NEW: show reward + difficulty messages permanently
-        document.getElementById("rewardFeed").textContent =
-          (out.feedback_message || "") +
-          (out.difficulty_message ? `  •  ${out.difficulty_message}` : "");
-
-        // show messages
-        if (out.feedback_message) showToast(out.feedback_message);
-        if (out.difficulty_message && out.difficulty_message !== "Difficulty unchanged.") {
-          showToast(out.difficulty_message);
-        }
-
-        if (out.correct) {
-          feedback.textContent = `✅ ${out.explanation}`;
-        } else {
-          feedback.textContent = `❌ ${out.explanation}`;
-          retryCount += 1;
-        }
-
-        if (out.next_question) {
-          setTimeout(() => renderQuestion(out.next_question), 450);
-        } else {
-          showToast("🏁 Session complete — click Finish.");
-        }
-      } catch (e) {
-        err.textContent = e?.message ? e.message : JSON.stringify(e);
-      }
-    };
-
-    document.getElementById("finishBtn").onclick = async () => {
-      err.textContent = "";
-      try {
-        const out = await api(`/sessions/${sessionId}/finish?user_id=${state.user_id}`, "POST");
-        saveState({ ...state, session_id: sessionId, summary: out });
-        window.location.href = "summary.html";
-      } catch (e) {
-        err.textContent = e?.message ? e.message : JSON.stringify(e);
-      }
-    };
-
-    start();
-  </script>
+  start();
+</script>
 </body>
 </html>

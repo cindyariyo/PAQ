@@ -113,11 +113,59 @@
     #finishBtn { font-size: 13px; opacity: 0.6; }
 
     .sp { margin-top: 10px; }
+
+    /* ── Achiever: gold level chip + progress bar ── */
+    .achiever-mode #chipLevel {
+      background: linear-gradient(135deg, rgba(255,200,50,0.22), rgba(255,140,0,0.16));
+      border: 1px solid rgba(255,200,50,0.55);
+      color: rgba(255,220,70,1);
+      box-shadow: 0 0 14px rgba(255,190,40,0.18);
+    }
+    .achiever-mode .progress-bar {
+      background: linear-gradient(90deg, rgba(255,200,50,0.9), rgba(255,140,0,0.85));
+    }
+
+    /* ── Free Spirit: optional challenge button ── */
+    #challengeWrap { display: none; margin-top: 8px; }
+    #challengeWrap.visible { display: block; }
+    #challengeBtn {
+      width: 100%;
+      background: linear-gradient(135deg, rgba(100,200,255,0.12), rgba(80,140,255,0.08));
+      border: 1px solid rgba(100,180,255,0.32);
+      color: rgba(140,210,255,0.95);
+      font-weight: 600; font-size: 14px;
+    }
+    #challengeBtn:hover { background: rgba(100,180,255,0.18); border-color: rgba(100,200,255,0.55); }
+
+    /* ── Leaderboard banner ── */
+    .lb-banner {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 14px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.07);
+      background: rgba(255,255,255,0.025);
+      margin-bottom: 10px;
+    }
+    .lb-banner-left { display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,0.40); }
+    .lb-banner-lock { font-size: 14px; opacity: 0.5; }
+    .lb-banner-badge {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.4px;
+      color: rgba(255,255,255,0.28); border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 6px; padding: 2px 7px; text-transform: uppercase;
+    }
   </style>
 </head>
 <body>
 <div class="container">
   <h1 style="margin-bottom:12px;">Quiz Session</h1>
+
+  <!-- ── Leaderboard banner (placeholder) ── -->
+  <div class="lb-banner">
+    <div class="lb-banner-left">
+      <span class="lb-banner-lock">🏆</span>
+      <span>View Leaderboard</span>
+    </div>
+    <span class="lb-banner-badge">Coming Soon</span>
+  </div>
 
   <div class="card" id="card" style="padding:16px 20px;">
 
@@ -185,6 +233,10 @@
       <button class="btn-primary" id="nextBtn" style="width:100%;">Next Question →</button>
     </div>
 
+    <div id="challengeWrap">
+      <button id="challengeBtn">🧭 Accept Optional Challenge →</button>
+    </div>
+
     <p id="err" class="small" style="color:rgba(255,100,100,0.8); margin-top:2px; min-height:4px;"></p>
 
     <!-- ── Tips strip — compact, full width, at bottom ── -->
@@ -222,10 +274,12 @@
   const feedbackNudge= document.getElementById("feedbackNudge");
   const diffMsg      = document.getElementById("diffMsg");
   const nextWrap     = document.getElementById("nextWrap");
-  const nextBtn      = document.getElementById("nextBtn");
-  const finishBtn    = document.getElementById("finishBtn");
-  const err          = document.getElementById("err");
-  const toastEl      = document.getElementById("toastEl");
+  const nextBtn        = document.getElementById("nextBtn");
+  const challengeWrap  = document.getElementById("challengeWrap");
+  const challengeBtn   = document.getElementById("challengeBtn");
+  const finishBtn      = document.getElementById("finishBtn");
+  const err            = document.getElementById("err");
+  const toastEl        = document.getElementById("toastEl");
 
   let sessionId       = null;
   let currentQuestion = null;
@@ -235,6 +289,8 @@
   let hintLevelShown  = 0;
   let answered        = false;
   let timerHandle     = null;
+  let prevLevel       = 1;
+  let hexadType       = "Unknown";
 
   let toastTimer = null;
   function showToast(msg, duration = 3000) {
@@ -247,7 +303,12 @@
 
   function updateHUD(data) {
     const lvl = data.updated_difficulty_level ?? data.difficulty_level ?? 1;
-    chipLevel.textContent = `🧩 Level ${lvl}`;
+    const isAchiever = hexadType === "Achiever";
+    chipLevel.textContent = isAchiever ? `🏅 Mastery Lv. ${lvl}` : `🧩 Level ${lvl}`;
+    if (isAchiever && lvl > prevLevel) {
+      showToast(`🏆 Mastery Level Up! You're now at Level ${lvl}`);
+    }
+    prevLevel = lvl;
     document.getElementById("xpVal").textContent     = data.xp ?? 0;
     document.getElementById("streakVal").textContent = data.streak ?? 0;
     const done  = data.questions_answered ?? 0;
@@ -341,6 +402,7 @@
     feedbackNudge.textContent = "";
     diffMsg.textContent       = "";
     nextWrap.classList.remove("visible");
+    challengeWrap.classList.remove("visible");
     err.textContent           = "";
 
     hintBtn.disabled      = false;
@@ -363,11 +425,18 @@
   }
 
   function applyHexadUI(hexad) {
+    hexadType = hexad;
+    const card = document.getElementById("card");
+
+    if (hexad === "Achiever") {
+      card.classList.add("achiever-mode");
+    }
+
     const tips = {
-      "Player":        ["Go for quick wins — fast + correct = level up.", "Try one attempt before hints for max XP.", "Keep streaks alive to farm XP."],
+      "Player":        ["Go for quick wins; fast + correct = level up.", "Try one attempt before hints for max XP.", "Keep streaks alive to farm XP."],
       "Achiever":      ["No-hint + under 40s answers level you up faster.", "Use hints only as a last resort.", "Focus on accuracy over speed."],
-      "Socialiser":    ["Hints are normal — many learners use them.", "Steady progress matters more than speed.", "Review explanations to improve over time."],
-      "Free Spirit":   ["Explore different approaches before hints.", "Optional harder questions may appear — take them if ready.", "Speed matters less than experimenting."],
+      "Socialiser":    ["Hints are normal; many learners use them.", "Steady progress matters more than speed.", "Review explanations to improve over time."],
+      "Free Spirit":   ["Optional challenges appear after correct answers; take them if you want a harder question.", "Explore different approaches before hints.", "Speed matters less than experimenting."],
       "Philanthropist":["Use hints to understand the concept, not just the answer.", "Read explanations carefully.", "Consistency wins."],
       "Disruptor":     ["Try an alternative method if your first fails.", "Trace with small examples mentally.", "Use Hint 1 then attempt immediately."],
       "Unknown":       ["Answer quickly + correctly to level up.", "Hints help but reduce your strong-correct streak.", "Streak boosts momentum."],
@@ -381,6 +450,7 @@
     try {
       const out = await api("/sessions/start", "POST", { user_id: state.user_id });
       sessionId = out.session_id;
+      prevLevel = out.difficulty_level ?? 1;
       saveState({ ...state, session_id: sessionId, hexad_type: out.hexad_type, settings: out.settings });
       hexadBadge.textContent = `${out.hexad_type}  ·  Session #${sessionId}`;
       applyHexadUI(out.hexad_type);
@@ -439,7 +509,11 @@
         if (out.difficulty_message) diffMsg.textContent = out.difficulty_message;
         if (out.next_question) {
           pendingQuestion = out.next_question;
-          nextWrap.classList.add("visible");
+          if (hexadType === "Free Spirit") {
+            challengeWrap.classList.add("visible");
+          } else {
+            nextWrap.classList.add("visible");
+          }
         } else {
           diffMsg.textContent += (diffMsg.textContent ? "  ·  " : "") + "🏁 Session complete — click Finish.";
         }
@@ -490,6 +564,13 @@
   }
 
   nextBtn.onclick = () => { if (pendingQuestion) renderQuestion(pendingQuestion); };
+
+  challengeBtn.onclick = () => {
+    if (pendingQuestion) {
+      showToast("🧭 Challenge accepted! Good luck.");
+      renderQuestion(pendingQuestion);
+    }
+  };
 
   finishBtn.onclick = async () => {
     err.textContent = "";

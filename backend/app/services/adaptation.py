@@ -37,7 +37,9 @@ def update_difficulty(
     current = session.difficulty_level_used
 
     # ── Decrease ──
-    struggling = (not correct and retries >= 2) or (time_spent > 90)
+    # Time-based penalty doesn't apply at level 5 — harder questions take longer by design
+    time_penalty = (time_spent > 90) and (current < 5)
+    struggling = (not correct and retries >= 2) or time_penalty
     if struggling:
         session.strong_correct_streak = 0
         new_level = max(session_floor, current - 1)

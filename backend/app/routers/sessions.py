@@ -115,7 +115,7 @@ def _feedback_message(hexad: str, correct: bool, xp_delta: int, streak: int) -> 
             "Player":         f"✅ Nice! +{xp_delta} XP. Streak: {streak} 🔥",
             "Achiever":       f"✅ Correct! mastery up. Streak: {streak} 🔥",
             "Socialiser":     f"✅ Correct! keep going! Streak: {streak} 🔥",
-            "Free Spirit":    f"✅ Correct! your approach works. Streak: {streak} 🔥",
+            "Free Spirit":    f"✅ Correct! nice approach! Streak: {streak} 🔥",
             "Philanthropist": f"✅ Correct! steady improvement. Streak: {streak} 🔥",
             "Disruptor":      f"✅ Correct! you broke it down well. Streak: {streak} 🔥",
         }.get(hexad, f"✅ Correct! +{xp_delta} XP. Streak: {streak} 🔥")

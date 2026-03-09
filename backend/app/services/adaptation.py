@@ -25,7 +25,7 @@ def update_difficulty(
     Adapts difficulty_level_used on the session object after each answer.
 
     Rules:
-    - Decrease if: wrong after >=2 retries OR time > 90s
+    - Decrease if: wrong after >=1 retry OR time > 90s
       Floor: never below session_floor (which is max(1, starting_level - 1))
     - Increase if: 2 consecutive strong-correct answers (correct + no hint + <40s)
       Achiever: only needs 1 strong correct to level up
@@ -39,7 +39,7 @@ def update_difficulty(
     # ── Decrease ──
     # Time-based penalty doesn't apply at level 5 — harder questions take longer by design
     time_penalty = (time_spent > 90) and (current < 5)
-    struggling = (not correct and retries >= 2) or time_penalty
+    struggling = (not correct and retries >= 1) or time_penalty
     if struggling:
         session.strong_correct_streak = 0
         new_level = max(session_floor, current - 1)

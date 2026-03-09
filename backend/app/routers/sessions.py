@@ -1,4 +1,5 @@
 import json
+import random
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -24,8 +25,10 @@ def _session_total(difficulty_level: int) -> int:
 # ─────────────────────────────────────────────
 
 def _question_to_out(q: Question) -> QuestionOut:
+    options = json.loads(q.options_json or "[]")
+    random.shuffle(options)
     return QuestionOut(id=q.id, topic=q.topic, difficulty=q.difficulty,
-                       prompt=q.prompt, options=json.loads(q.options_json or "[]"))
+                       prompt=q.prompt, options=options)
 
 def _get_profile(db: Session, user_id: int) -> UserProfile:
     profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
@@ -33,10 +36,11 @@ def _get_profile(db: Session, user_id: int) -> UserProfile:
         raise HTTPException(status_code=404, detail="User profile not found")
     return profile
 
-def _get_correct_ids(db: Session, user_id: int) -> set:
+def _get_excluded_ids(db: Session, user_id: int) -> set:
+    """Questions not to pick again: correctly answered OR seen (wrong but not skipped)."""
     rows = db.query(UserQuestionState.question_id).filter(
         UserQuestionState.user_id == user_id,
-        UserQuestionState.status == "correct"
+        UserQuestionState.status.in_(["correct", "seen"])
     ).all()
     return {r[0] for r in rows}
 
@@ -55,8 +59,7 @@ def _pick_question(db: Session, difficulty_level: int, user_id: int, exclude_ids
     3. Fallback: any unseen question at any difficulty
     """
     retry_ids      = set(_get_retry_ids(db, user_id))
-    correct_ids    = _get_correct_ids(db, user_id)
-    fully_excluded = correct_ids | exclude_ids
+    fully_excluded = _get_excluded_ids(db, user_id) | exclude_ids
 
     # 1. Retry at this level
     q = (db.query(Question)
@@ -96,6 +99,17 @@ def _mark_retry(db: Session, user_id: int, question_id: int):
             state.status = "retry"; state.updated_at = datetime.utcnow()
     else:
         db.add(UserQuestionState(user_id=user_id, question_id=question_id, status="retry"))
+
+def _mark_seen(db: Session, user_id: int, question_id: int):
+    """Wrong answer, not skipped — exclude from future sessions but don't requeue."""
+    state = db.query(UserQuestionState).filter(
+        UserQuestionState.user_id == user_id,
+        UserQuestionState.question_id == question_id).first()
+    if state:
+        if state.status not in ("correct", "retry"):
+            state.status = "seen"; state.updated_at = datetime.utcnow()
+    else:
+        db.add(UserQuestionState(user_id=user_id, question_id=question_id, status="seen"))
 
 def _hexad_prefix(hexad: str) -> str:
     return {
@@ -221,11 +235,11 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
     ))
 
     if correct: _mark_correct(db, payload.user_id, q.id)
-    else:       _mark_retry(db, payload.user_id, q.id)
+    else:       _mark_seen(db, payload.user_id, q.id)
 
-    session.questions_answered += 1
     xp_delta = 5
     if correct:
+        session.questions_answered += 1
         session.correct_count += 1; session.streak += 1; xp_delta += 20
     else:
         session.streak = 0
@@ -281,6 +295,11 @@ def skip_question(session_id: int, user_id: int, question_id: int, db: Session =
     ))
     session.questions_answered += 1
     session.streak = 0
+    session.strong_correct_streak = 0
+    # Decrease difficulty on skip — respecting session floor
+    floor = max(1, (session.starting_difficulty or session.difficulty_level_used) - 1)
+    if session.difficulty_level_used > floor:
+        session.difficulty_level_used -= 1
     db.commit()
 
     seen_ids = {a.question_id for a in db.query(Attempt).filter(Attempt.session_id == session.id).all()}

@@ -1,0 +1,230 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Leaderboard</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .tab-row {
+      display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px;
+    }
+    .tab-btn {
+      padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+      border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04);
+      color: rgba(255,255,255,0.5); cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .tab-btn:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); }
+    .tab-btn.active {
+      background: rgba(120,140,255,0.20); border-color: rgba(120,140,255,0.55);
+      color: rgba(255,255,255,0.95);
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .lb-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.07);
+      background: rgba(0,0,0,0.15); margin-bottom: 7px;
+      font-size: 14px; transition: background 0.2s;
+    }
+    .lb-row.me {
+      background: rgba(120,140,255,0.14);
+      border-color: rgba(120,140,255,0.45);
+    }
+    .lb-rank {
+      font-size: 18px; width: 28px; text-align: center; flex-shrink: 0;
+    }
+    .lb-code {
+      flex: 1; font-weight: 700; letter-spacing: 0.5px;
+      color: rgba(255,255,255,0.9); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    }
+    .me-label {
+      font-size: 10px; font-weight: 600; color: rgba(120,160,255,0.9);
+      background: rgba(120,140,255,0.18); border-radius: 6px; padding: 1px 6px;
+    }
+    .active-dot {
+      display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+      background: rgba(80,220,140,0.9);
+      box-shadow: 0 0 6px rgba(80,220,140,0.7);
+      animation: pulse 1.5s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+    }
+    .lb-stats {
+      text-align: right; font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.5;
+    }
+    .lb-stats .xp { font-size: 14px; font-weight: 700; color: rgba(255,220,80,0.9); }
+
+    .refresh-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px; font-size: 11px; color: rgba(255,255,255,0.3);
+    }
+    .refresh-dot {
+      display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(80,220,140,0.7); margin-right: 5px;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .waiting-msg {
+      text-align: center; padding: 32px 16px;
+      color: rgba(255,255,255,0.35); font-size: 14px; line-height: 1.8;
+    }
+    .waiting-msg .big { font-size: 28px; display: block; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Leaderboard</h1>
+    <div class="card" id="lbCard">
+      <div class="small">Loading...</div>
+    </div>
+    <div style="margin-top:12px; text-align:center;">
+      <a href="quiz.html" class="small">← Back to Quiz</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { api, loadState } from "./api.js";
+
+    const state = loadState();
+    if (!state.user_id) window.location.href = "index.html";
+
+    const myCode = (state.study_code || "").toUpperCase();
+    let activeTab = "tab-overall";
+    let pollHandle = null;
+
+    function medalFor(rank) {
+      return rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
+    }
+
+    function buildOverallRows(entries) {
+      return entries.map(e => {
+        const isMe = e.study_code.toUpperCase() === myCode;
+        return `
+          <div class="lb-row${isMe ? " me" : ""}">
+            <span class="lb-rank">${medalFor(e.rank)}</span>
+            <span class="lb-code">
+              ${e.study_code}
+              ${isMe ? '<span class="me-label">you</span>' : ""}
+              ${e.is_active ? '<span class="active-dot" title="Currently playing"></span>' : ""}
+            </span>
+            <div class="lb-stats">
+              <div class="xp">⚡ ${e.total_xp} XP</div>
+              <div>${e.overall_accuracy}% acc · ${e.sessions_completed} done</div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function buildSessionRows(entries) {
+      return entries.map(e => {
+        const isMe = e.study_code.toUpperCase() === myCode;
+        return `
+          <div class="lb-row${isMe ? " me" : ""}">
+            <span class="lb-rank">${medalFor(e.rank)}</span>
+            <span class="lb-code">
+              ${e.study_code}
+              ${isMe ? '<span class="me-label">you</span>' : ""}
+              ${e.is_active ? '<span class="active-dot" title="Currently playing"></span>' : ""}
+            </span>
+            <div class="lb-stats">
+              <div class="xp">⚡ ${e.xp} XP</div>
+              <div>${e.correct_count}/${e.questions_answered} (${e.accuracy}%)</div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function render(lb) {
+      if (lb.total_users < 2) {
+        document.getElementById("lbCard").innerHTML = `
+          <div class="waiting-msg">
+            <span class="big">🏆</span>
+            Rankings will appear once more than one participant has started.
+            <br><br>
+            <span style="color:rgba(255,255,255,0.5);">
+              ${lb.total_users === 1 ? "You're the first one here — check back when others join." : "No sessions started yet."}
+            </span>
+          </div>
+        `;
+        return;
+      }
+
+      // Build tab list: Overall + one per session with 2+ entries
+      const sessionTabs = lb.sessions.map(s => ({ id: `tab-s${s.session_number}`, label: `Session ${s.session_number}` }));
+      const allTabs = [{ id: "tab-overall", label: "Overall" }, ...sessionTabs];
+
+      // Keep active tab if it still exists, else fall back to overall
+      if (!allTabs.find(t => t.id === activeTab)) activeTab = "tab-overall";
+
+      const tabRowHtml = allTabs.map(t =>
+        `<button class="tab-btn${t.id === activeTab ? " active" : ""}" data-tab="${t.id}">${t.label}</button>`
+      ).join("");
+
+      const overallHtml = `<div id="tab-overall" class="tab-panel${activeTab === "tab-overall" ? " active" : ""}">${buildOverallRows(lb.overall)}</div>`;
+      const sessionHtml = lb.sessions.map(s => `
+        <div id="tab-s${s.session_number}" class="tab-panel${activeTab === `tab-s${s.session_number}` ? " active" : ""}">
+          ${buildSessionRows(s.entries)}
+        </div>
+      `).join("");
+
+      const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+      document.getElementById("lbCard").innerHTML = `
+        <div class="refresh-row">
+          <span><span class="refresh-dot"></span>Live · updates every 10s</span>
+          <span>Last: ${now}</span>
+        </div>
+        <div class="tab-row">${tabRowHtml}</div>
+        ${overallHtml}
+        ${sessionHtml}
+      `;
+
+      document.querySelectorAll(".tab-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          activeTab = btn.dataset.tab;
+          document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === activeTab));
+          document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === activeTab));
+        });
+      });
+    }
+
+    async function refresh() {
+      try {
+        const lb = await api("/leaderboard");
+        render(lb);
+      } catch (e) {
+        // Silently keep previous render on poll failure
+      }
+    }
+
+    // Initial load
+    try {
+      const lb = await api("/leaderboard");
+      render(lb);
+    } catch (e) {
+      document.getElementById("lbCard").innerHTML =
+        `<div class="small" style="color:rgba(255,100,100,0.8);">Error: ${e.message}</div>`;
+    }
+
+    // Poll every 10 seconds
+    pollHandle = setInterval(refresh, 10_000);
+
+    // Stop polling when tab hidden to save resources
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        clearInterval(pollHandle);
+      } else {
+        refresh();
+        pollHandle = setInterval(refresh, 10_000);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -187,6 +187,7 @@ def start_session(payload: StartSessionIn, db: Session = Depends(get_db)):
 
     return StartSessionOut(
         session_id=session.id,
+        session_number=session.session_number,
         difficulty_level=starting_difficulty,
         hexad_type=profile.hexad_type,
         settings=settings,

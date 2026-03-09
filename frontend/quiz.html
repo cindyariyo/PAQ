@@ -143,14 +143,19 @@
       padding: 9px 14px; border-radius: 12px;
       border: 1px solid rgba(255,255,255,0.07);
       background: rgba(255,255,255,0.025);
-      margin-bottom: 10px;
+      margin-bottom: 10px; text-decoration: none; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
     }
-    .lb-banner-left { display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,0.40); }
-    .lb-banner-lock { font-size: 14px; opacity: 0.5; }
+    .lb-banner:hover {
+      background: rgba(255,255,255,0.055);
+      border-color: rgba(255,255,255,0.18);
+    }
+    .lb-banner-left { display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,0.55); }
+    .lb-banner-lock { font-size: 14px; }
     .lb-banner-badge {
       font-size: 10px; font-weight: 600; letter-spacing: 0.4px;
-      color: rgba(255,255,255,0.28); border: 1px solid rgba(255,255,255,0.10);
-      border-radius: 6px; padding: 2px 7px; text-transform: uppercase;
+      color: rgba(255,255,255,0.45); border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 6px; padding: 2px 7px;
     }
   </style>
 </head>
@@ -158,14 +163,14 @@
 <div class="container">
   <h1 style="margin-bottom:12px;">Quiz Session</h1>
 
-  <!-- ── Leaderboard banner (placeholder) ── -->
-  <div class="lb-banner">
+  <!-- ── Leaderboard banner ── -->
+  <a href="leaderboard.html" class="lb-banner">
     <div class="lb-banner-left">
       <span class="lb-banner-lock">🏆</span>
       <span>View Leaderboard</span>
     </div>
-    <span class="lb-banner-badge">Coming Soon</span>
-  </div>
+    <span id="lbBadge" class="lb-banner-badge">...</span>
+  </a>
 
   <div class="card" id="card" style="padding:16px 20px;">
 
@@ -451,8 +456,8 @@
       const out = await api("/sessions/start", "POST", { user_id: state.user_id });
       sessionId = out.session_id;
       prevLevel = out.difficulty_level ?? 1;
-      saveState({ ...state, session_id: sessionId, hexad_type: out.hexad_type, settings: out.settings });
-      hexadBadge.textContent = `${out.hexad_type}  ·  Session #${sessionId}`;
+      saveState({ ...state, session_id: sessionId, session_number: out.session_number, hexad_type: out.hexad_type, settings: out.settings });
+      hexadBadge.textContent = `${out.hexad_type}  ·  Session #${out.session_number}`;
       applyHexadUI(out.hexad_type);
       updateHUD(out);
       renderQuestion(out.question);
@@ -585,6 +590,20 @@
   };
 
   start();
+
+  // Update leaderboard banner with live participant count
+  api("/leaderboard").then(lb => {
+    const badge = document.getElementById("lbBadge");
+    if (!badge) return;
+    if (lb.total_users >= 2) {
+      badge.textContent = `${lb.total_users} participants`;
+    } else {
+      badge.textContent = "Just you so far";
+    }
+  }).catch(() => {
+    const badge = document.getElementById("lbBadge");
+    if (badge) badge.textContent = "–";
+  });
 </script>
 </body>
 </html>

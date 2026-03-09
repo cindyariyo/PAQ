@@ -37,6 +37,7 @@ class QuestionOut(BaseModel):
 
 class StartSessionOut(BaseModel):
     session_id: int
+    session_number: int
     difficulty_level: int
     hexad_type: str
     settings: Dict[str, Any]
@@ -87,3 +88,61 @@ class QuestionnaireIn(BaseModel):
     frustration: int
     effort: int
     free_text: str = ""
+
+
+class ProfileQuestionnaireOut(BaseModel):
+    enjoyment: int
+    frustration: int
+    effort: int
+    free_text: str
+
+
+class ProfileSessionOut(BaseModel):
+    session_number: int
+    started_at: Optional[str]
+    ended_at: Optional[str]
+    difficulty_level_used: int
+    questions_answered: int
+    correct_count: int
+    xp: int
+    used_hint_this_session: bool
+    questionnaire: Optional[ProfileQuestionnaireOut]
+
+
+class ProfileOut(BaseModel):
+    study_code: str
+    hexad_type: str
+    total_sessions: int
+    total_xp: int
+    overall_accuracy: int  # percentage 0-100
+    sessions: List[ProfileSessionOut]
+
+
+class LeaderboardEntry(BaseModel):
+    rank: int
+    study_code: str
+    total_xp: int
+    overall_accuracy: int
+    sessions_completed: int
+    is_active: bool = False
+
+
+class SessionRankEntry(BaseModel):
+    rank: int
+    study_code: str
+    xp: int
+    accuracy: int
+    correct_count: int
+    questions_answered: int
+    is_active: bool = False
+
+
+class SessionLeaderboard(BaseModel):
+    session_number: int
+    entries: List[SessionRankEntry]
+
+
+class LeaderboardOut(BaseModel):
+    total_users: int
+    overall: List[LeaderboardEntry]
+    sessions: List[SessionLeaderboard]

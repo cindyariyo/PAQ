@@ -38,6 +38,13 @@ def get_profile(user_id: int, db: Session = Depends(get_db)):
             enjoyment=qr.enjoyment,
             frustration=qr.frustration,
             effort=qr.effort,
+            focused=qr.focused,
+            challenge=qr.challenge,
+            recovered=qr.recovered,
+            hints_helped=qr.hints_helped,
+            satisfied=qr.satisfied,
+            motivated=qr.motivated,
+            favourite_features=qr.favourite_features or "",
             free_text=qr.free_text or "",
         ) if qr else None
 

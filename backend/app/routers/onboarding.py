@@ -12,14 +12,25 @@ router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
 @router.get("/questions")
 def onboarding_questions():
-    # MVP short Hexad questionnaire
     return [
-        {"id": "Achiever_1", "text": "I feel motivated by mastering hard tasks.", "scale": "1-5"},
-        {"id": "Player_1", "text": "Rewards and points motivate me.", "scale": "1-5"},
-        {"id": "Socialiser_1", "text": "I like learning with others and comparing progress.", "scale": "1-5"},
-        {"id": "FreeSpirit_1", "text": "I like having options and exploring different paths.", "scale": "1-5"},
-        {"id": "Philanthropist_1", "text": "I enjoy helping others succeed.", "scale": "1-5"},
-        {"id": "Disruptor_1", "text": "I enjoy changing/improving learning systems.", "scale": "1-5"},
+        {"id": "Achiever_1",       "text": "I enjoy improving my performance over time.",                               "scale": "1-5"},
+        {"id": "Socialiser_1",     "text": "I am interested in how my performance compares to others.",                 "scale": "1-5"},
+        {"id": "Player_1",         "text": "Earning points or rewards encourages me to keep going.",                    "scale": "1-5"},
+        {"id": "FreeSpirit_1",     "text": "I prefer having flexibility in how I approach tasks.",                      "scale": "1-5"},
+        {"id": "Philanthropist_1", "text": "I value activities that feel meaningful or useful.",                        "scale": "1-5"},
+        {"id": "Achiever_2",       "text": "I like working towards clear goals or milestones.",                         "scale": "1-5"},
+        {"id": "Disruptor_1",      "text": "I get bored when tasks feel too structured or repetitive.",                 "scale": "1-5"},
+        {"id": "Player_2",         "text": "I am motivated by visible progress or achievements.",                       "scale": "1-5"},
+        {"id": "Socialiser_2",     "text": "I enjoy working alongside others.",                                         "scale": "1-5"},
+        {"id": "Disruptor_2",      "text": "I like having control over how I complete tasks.",                          "scale": "1-5"},
+        {"id": "FreeSpirit_2",     "text": "I like exploring different ways to solve problems.",                        "scale": "1-5"},
+        {"id": "Philanthropist_2", "text": "I like contributing to others' progress or success.",                      "scale": "1-5"},
+        {"id": "Achiever_3",       "text": "I feel satisfied when I overcome difficult challenges.",                    "scale": "1-5"},
+        {"id": "Socialiser_3",     "text": "Seeing others' progress can motivate me.",                                  "scale": "1-5"},
+        {"id": "Player_3",         "text": "I like receiving recognition for completing tasks.",                        "scale": "1-5"},
+        {"id": "Philanthropist_3", "text": "I enjoy sharing knowledge or helping others learn.",                        "scale": "1-5"},
+        {"id": "FreeSpirit_3",     "text": "I enjoy discovering new features or options.",                              "scale": "1-5"},
+        {"id": "Disruptor_3",      "text": "I enjoy finding alternative or unconventional solutions to problems.",      "scale": "1-5"},
     ]
 
 

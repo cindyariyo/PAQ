@@ -62,7 +62,7 @@ def update_difficulty(
         new_level = min(5, current + 1)
         if new_level > current:
             msg = ("Optional harder challenge — take it if you're ready!"
-                   if hexad == "Free Spirit" else "Difficulty increased. Great work!")
+                   if hexad in ("Free Spirit", "Disruptor") else "Difficulty increased. Great work!")
             return new_level, msg
         return current, "You're at the top level. Excellent!"
 

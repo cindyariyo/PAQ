@@ -93,12 +93,20 @@ class FinishOut(BaseModel):
     questions_answered: int
     correct_count: int
     first_attempt_correct: int
+    topics_to_review: list[str] = []
 
 
 class QuestionnaireIn(BaseModel):
     enjoyment: int
     frustration: int
     effort: int
+    focused: int = 3
+    challenge: int = 3
+    recovered: int = 3
+    hints_helped: int = 3
+    satisfied: int = 3
+    motivated: int = 3
+    favourite_features: str = ""
     free_text: str = ""
 
 
@@ -106,6 +114,13 @@ class ProfileQuestionnaireOut(BaseModel):
     enjoyment: int
     frustration: int
     effort: int
+    focused: int
+    challenge: int
+    recovered: int
+    hints_helped: int
+    satisfied: int
+    motivated: int
+    favourite_features: str
     free_text: str
 
 

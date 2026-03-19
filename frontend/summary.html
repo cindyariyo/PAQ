@@ -94,6 +94,22 @@
       font-family: inherit;
     }
     textarea::placeholder { color: rgba(255,255,255,0.35); }
+
+    .features-grid {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;
+    }
+    .feature-chip {
+      display: flex; align-items: center; gap: 6px; padding: 7px 14px;
+      border-radius: 20px; border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(0,0,0,0.15); font-size: 13px; color: rgba(255,255,255,0.65);
+      cursor: pointer; transition: background 0.15s, border-color 0.15s; user-select: none;
+    }
+    .feature-chip:hover { background: rgba(255,255,255,0.09); }
+    .feature-chip input { display: none; }
+    .feature-chip:has(input:checked) {
+      background: rgba(120,140,255,0.22); border-color: rgba(120,140,255,0.55);
+      color: rgba(255,255,255,1); font-weight: 600;
+    }
   </style>
 </head>
 <body>
@@ -105,29 +121,89 @@
       <div class="small" style="margin-bottom:4px;">Loading summary...</div>
     </div>
 
+    <!-- Topics to review -->
+    <div class="card" id="topicsCard" style="margin-top:16px; display:none;">
+      <h3 style="margin:0 0 8px; font-size:15px;">📚 Topics to Review</h3>
+      <p class="small" style="margin:0 0 10px; color:rgba(255,255,255,0.5);">These topics came up in questions you found tricky this session.</p>
+      <div id="topicsList" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+    </div>
+
     <!-- Post-session questionnaire -->
     <div class="card" style="margin-top:16px;">
       <h3 style="margin:0 0 6px;">Quick Check-in</h3>
-      <p class="small" style="margin:0 0 18px;">
+      <p class="small" style="margin:0 0 4px;">
         Rate each item honestly (1 = not at all, 5 = very much). Takes about 1 minute.
+      </p>
+      <p class="small" style="margin:0 0 18px; color:rgba(255,255,255,0.45);">
+        Think about your experience overall across this session.
       </p>
 
       <div class="likert-block">
-        <span class="q-label">Overall, how much did you enjoy working through the questions in this session?</span>
+        <span class="q-label">How much did you enjoy working through the questions?</span>
         <div class="likert-row" id="enjoymentRow"></div>
         <div class="scale-ends"><span>Didn't enjoy it</span><span>Really enjoyed it</span></div>
       </div>
 
       <div class="likert-block">
-        <span class="q-label">While working through the questions, did you feel frustrated at any point?</span>
+        <span class="q-label">Did you feel frustrated at any point?</span>
         <div class="likert-row" id="frustrationRow"></div>
         <div class="scale-ends"><span>Not at all</span><span>Very frustrated</span></div>
       </div>
 
       <div class="likert-block">
-        <span class="q-label">How much effort did you put in overall?</span>
+        <span class="q-label">How much effort did you put in?</span>
         <div class="likert-row" id="effortRow"></div>
         <div class="scale-ends"><span>Barely tried</span><span>Gave it my best</span></div>
+      </div>
+
+      <div class="likert-block">
+        <span class="q-label">How focused were you during this session?</span>
+        <div class="likert-row" id="focusedRow"></div>
+        <div class="scale-ends"><span>Not focused</span><span>Fully focused</span></div>
+      </div>
+
+      <div class="likert-block">
+        <span class="q-label">How challenging did you find the questions?</span>
+        <div class="likert-row" id="challengeRow"></div>
+        <div class="scale-ends"><span>Too easy</span><span>Too hard</span></div>
+      </div>
+
+      <div class="likert-block">
+        <span class="q-label">Were you able to recover from mistakes and keep going?</span>
+        <div class="likert-row" id="recoveredRow"></div>
+        <div class="scale-ends"><span>Not at all</span><span>Very easily</span></div>
+      </div>
+
+      <div class="likert-block">
+        <span class="q-label">Did the feedback and hints help you improve your answers?</span>
+        <div class="likert-row" id="hintsHelpedRow"></div>
+        <div class="scale-ends"><span>Not at all</span><span>A great deal</span></div>
+      </div>
+
+      <div class="likert-block">
+        <span class="q-label">How satisfied did you feel with your performance in this session?</span>
+        <div class="likert-row" id="satisfiedRow"></div>
+        <div class="scale-ends"><span>Not satisfied</span><span>Very satisfied</span></div>
+      </div>
+
+      <div class="likert-block">
+        <span class="q-label">Do you feel motivated to keep revising after this session?</span>
+        <div class="likert-row" id="motivatedRow"></div>
+        <div class="scale-ends"><span>Not motivated</span><span>Very motivated</span></div>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <span class="q-label">Which features did you find most useful? (select all that apply)</span>
+        <div class="features-grid" id="featuresGrid">
+          <label class="feature-chip"><input type="checkbox" value="Hints">💡 Hints</label>
+          <label class="feature-chip"><input type="checkbox" value="Difficulty Levels">📊 Difficulty Levels</label>
+          <label class="feature-chip"><input type="checkbox" value="XP & Streaks">⭐ XP &amp; Streaks</label>
+          <label class="feature-chip"><input type="checkbox" value="Leaderboard">🏆 Leaderboard</label>
+          <label class="feature-chip"><input type="checkbox" value="Progress Bar">📈 Progress Bar</label>
+          <label class="feature-chip"><input type="checkbox" value="Feedback & Explanations">✅ Feedback &amp; Explanations</label>
+          <label class="feature-chip"><input type="checkbox" value="Player Profile">🎮 Player Profile</label>
+          <label class="feature-chip"><input type="checkbox" value="Optional Challenges">🧭 Optional Challenges</label>
+        </div>
       </div>
 
       <div style="margin-bottom:20px;">
@@ -155,7 +231,7 @@
     if (!state.user_id) window.location.href = "index.html";
 
     // --- fetch fresh session stats from the DB (never rely on stale localStorage) ---
-    function renderSummaryCard(qTotal, firstCorr, correctCount) {
+    function renderSummaryCard(qTotal, firstCorr, correctCount, sessionNum) {
       const accuracy = qTotal > 0 ? Math.round((firstCorr / qTotal) * 100) : 0;
       document.getElementById("summaryCard").innerHTML = `
         <div class="stat-grid">
@@ -172,8 +248,20 @@
             <div class="label">1st-Try Acc.</div>
           </div>
         </div>
-        <div class="tiny" style="margin-top:12px; text-align:right;">Session #${state.session_number ?? state.session_id ?? "-"}</div>
+        <div class="tiny" style="margin-top:12px; text-align:right;">Session #${sessionNum ?? "-"}</div>
       `;
+    }
+
+    function renderTopics(topics) {
+      if (!topics || topics.length === 0) return;
+      const card = document.getElementById("topicsCard");
+      const list = document.getElementById("topicsList");
+      list.innerHTML = topics.map(t =>
+        `<span style="padding:5px 12px; border-radius:20px; font-size:12px; font-weight:600;
+          background:rgba(255,160,60,0.14); border:1px solid rgba(255,160,60,0.35);
+          color:rgba(255,200,100,0.95);">${t}</span>`
+      ).join("");
+      card.style.display = "block";
     }
 
     // Optimistic render from localStorage while API loads
@@ -181,8 +269,10 @@
     renderSummaryCard(
       cached.questions_answered ?? cached.total_questions ?? 0,
       cached.first_attempt_correct ?? 0,
-      cached.correct_count ?? 0
+      cached.correct_count ?? 0,
+      state.session_number
     );
+    renderTopics(cached.topics_to_review);
 
     // Always override with fresh data from the DB
     try {
@@ -192,7 +282,7 @@
       const fresh = (sn != null ? profile.sessions.find(s => s.session_number === sn) : null)
         ?? profile.sessions[profile.sessions.length - 1];
       if (fresh) {
-        renderSummaryCard(fresh.questions_answered, fresh.first_attempt_correct, fresh.correct_count);
+        renderSummaryCard(fresh.questions_answered, fresh.first_attempt_correct, fresh.correct_count, fresh.session_number);
       }
     } catch (e) { /* keep cached render */ }
 
@@ -209,10 +299,17 @@
     buildLikert("enjoymentRow",   "enjoyment");
     buildLikert("frustrationRow", "frustration");
     buildLikert("effortRow",      "effort");
+    buildLikert("focusedRow",     "focused");
+    buildLikert("challengeRow",   "challenge");
 
-    function getRadioVal(name) {
+    buildLikert("recoveredRow",   "recovered");
+    buildLikert("hintsHelpedRow", "hints_helped");
+    buildLikert("satisfiedRow",   "satisfied");
+    buildLikert("motivatedRow",   "motivated");
+
+    function getRadioVal(name, fallback = 3) {
       const el = document.querySelector(`input[name="${name}"]:checked`);
-      return el ? parseInt(el.value, 10) : 3;
+      return el ? parseInt(el.value, 10) : fallback;
     }
 
     // --- submit questionnaire ---
@@ -224,7 +321,14 @@
         enjoyment:   getRadioVal("enjoyment"),
         frustration: getRadioVal("frustration"),
         effort:      getRadioVal("effort"),
-        free_text:   document.getElementById("freeText").value.trim(),
+        focused:     getRadioVal("focused"),
+        challenge:   getRadioVal("challenge"),
+        recovered:          getRadioVal("recovered",    3),
+        hints_helped:       getRadioVal("hints_helped", 3),
+        satisfied:          getRadioVal("satisfied",    3),
+        motivated:          getRadioVal("motivated",    3),
+        favourite_features: [...document.querySelectorAll("#featuresGrid input:checked")].map(el => el.value).join(", "),
+        free_text:          document.getElementById("freeText").value.trim(),
       };
 
       try {

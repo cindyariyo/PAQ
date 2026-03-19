@@ -116,6 +116,13 @@ class QuestionnaireResponse(Base):
     enjoyment: Mapped[int] = mapped_column(Integer)
     frustration: Mapped[int] = mapped_column(Integer)
     effort: Mapped[int] = mapped_column(Integer)
+    focused: Mapped[int] = mapped_column(Integer, default=3)
+    challenge: Mapped[int] = mapped_column(Integer, default=3)
+    recovered: Mapped[int] = mapped_column(Integer, default=3)
+    hints_helped: Mapped[int] = mapped_column(Integer, default=3)
+    satisfied: Mapped[int] = mapped_column(Integer, default=3)
+    motivated: Mapped[int] = mapped_column(Integer, default=3)
+    favourite_features: Mapped[str] = mapped_column(Text, default="")
     free_text: Mapped[str] = mapped_column(Text, default="")
 
     session: Mapped["Session"] = relationship(back_populates="questionnaire")

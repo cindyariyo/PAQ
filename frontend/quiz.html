@@ -2,9 +2,6 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
   <title>Quiz</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
@@ -81,18 +78,18 @@
 
     /* ── Tips strip ── */
     .tips-strip {
-      margin-top: 1px; padding: 10px 16px;
-      border-radius: 14px; border: 1px solid rgba(255,255,255,0.08);
+      padding: 8px 12px;
+      border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);
       background: rgba(255,255,255,0.04);
     }
     .tips-title {
-      font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
-      text-transform: uppercase; color: rgba(255,255,255,0.45); margin-bottom: 5px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.6px;
+      text-transform: uppercase; color: rgba(255,255,255,0.40); margin-bottom: 4px;
     }
     .tips-strip ul {
-      margin: 0; padding-left: 18px;
+      margin: 0; padding-left: 14px;
     }
-    .tips-strip li { font-size: 13px; color: rgba(255,255,255,0.62); line-height: 1.65; }
+    .tips-strip li { font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1.55; }
 
     /* ── Next wrap ── */
     .next-wrap { display: none; }
@@ -212,7 +209,7 @@
 
   <!-- ── Leaderboard area (content set by JS based on hexad type) ── -->
   <div id="lbArea">
-    <a href="leaderboard.html" class="lb-banner">
+    <a href="leaderboard.html" target="_blank" class="lb-banner">
       <div class="lb-banner-left">
         <span class="lb-banner-lock">🏆</span>
         <span id="lbBannerText">View Leaderboard</span>
@@ -224,32 +221,42 @@
   <div class="card" id="card" style="padding:16px 20px;">
 
     <!-- ── HUD row: Level · XP · Streak ── -->
-    <div class="row" style="justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:0;">
-      <div class="chips">
-        <div class="chip" id="chipLevel" style="font-size:15px; font-weight:700; padding:10px 14px;">🧩 Level 1</div>
-        <div class="statRow">
-          <div class="stat" style="padding:8px 12px; min-width:0;">
-            <div>⭐</div>
-            <div><div class="big" id="xpVal" style="font-size:16px;">0</div><div class="label">XP</div></div>
+    <!-- ── HUD + Tips side by side ── -->
+    <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:10px;">
+
+      <!-- Left: level/xp/streak + hexad/progress -->
+      <div style="flex:1; min-width:0;">
+        <div class="chips">
+          <div class="chip" id="chipLevel" style="font-size:15px; font-weight:700; padding:10px 14px;">🧩 Level 1</div>
+          <div class="statRow">
+            <div class="stat" style="padding:8px 12px; min-width:0;">
+              <div>⭐</div>
+              <div><div class="big" id="xpVal" style="font-size:16px;">0</div><div class="label">XP</div></div>
+            </div>
+            <div class="stat" style="padding:8px 12px; min-width:0;">
+              <div>🔥</div>
+              <div><div class="big" id="streakVal" style="font-size:16px;">0</div><div class="label">Streak</div></div>
+            </div>
           </div>
-          <div class="stat" style="padding:8px 12px; min-width:0;">
-            <div>🔥</div>
-            <div><div class="big" id="streakVal" style="font-size:16px;">0</div><div class="label">Streak</div></div>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px;">
+          <span id="hexadBadge" style="
+            font-size:12px; font-weight:600; color:rgba(255,255,255,0.55);
+            background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12);
+            border-radius:8px; padding:3px 10px; white-space:nowrap;">Hexad: —</span>
+          <div style="flex:1; min-width:100px;">
+            <div class="tiny" id="progressText" style="margin-bottom:3px; color:rgba(255,255,255,0.40);">0 / 7</div>
+            <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- ── Hexad badge + progress bar ── -->
-    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:8px; margin-bottom:10px;">
-      <span id="hexadBadge" style="
-        font-size:12px; font-weight:600; color:rgba(255,255,255,0.55);
-        background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12);
-        border-radius:8px; padding:3px 10px; white-space:nowrap;">Hexad: —</span>
-      <div style="flex:1; min-width:120px; max-width:240px;">
-        <div class="tiny" id="progressText" style="margin-bottom:3px; color:rgba(255,255,255,0.40);">0 / 7</div>
-        <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+      <!-- Right: tips -->
+      <div class="tips-strip" style="flex:0 0 42%; max-width:42%; margin-top:0;">
+        <div class="tips-title" id="tipsTitle">Tips</div>
+        <ul id="tipsList"></ul>
       </div>
+
     </div>
 
     <hr style="margin:0 0 12px;" />
@@ -288,16 +295,10 @@
     </div>
 
     <div id="challengeWrap">
-      <button id="challengeBtn">🧭 Accept Optional Challenge →</button>
+      <button id="challengeBtn">🧭 Would you like to try the next challenge?</button>
     </div>
 
     <p id="err" class="small" style="color:rgba(255,100,100,0.8); margin-top:2px; min-height:4px;"></p>
-
-    <!-- ── Tips strip — compact, full width, at bottom ── -->
-    <div class="tips-strip">
-      <div class="tips-title" id="tipsTitle">Tips</div>
-      <ul id="tipsList"></ul>
-    </div>
 
   </div><!-- /card -->
 </div><!-- /container -->
@@ -495,9 +496,9 @@
       "Disruptor":     ["Try an alternative method if your first fails.", "Trace with small examples mentally.", "Use Hint 1 then attempt immediately."],
       "Unknown":       ["Answer quickly + correctly to level up.", "Hints help but reduce your strong-correct streak.", "Streak boosts momentum."],
     };
-    document.getElementById("tipsTitle").textContent = `${hexad} Tips`;
+    document.getElementById("tipsTitle").textContent = "Tips For You";
     document.getElementById("tipsList").innerHTML =
-      (tips[hexad] || tips["Unknown"]).map(t => `<li>${t}</li>`).join("");
+      (tips[hexad] || tips["Unknown"]).slice(0, 2).map(t => `<li>${t}</li>`).join("");
   }
 
   async function start() {
@@ -505,7 +506,8 @@
       const out = await api("/sessions/start", "POST", { user_id: state.user_id });
       sessionId = out.session_id;
       prevLevel = out.difficulty_level ?? 1;
-      saveState({ ...state, session_id: sessionId, session_number: out.session_number, hexad_type: out.hexad_type, settings: out.settings, summary: null });
+      saveState({ ...state, session_id: sessionId, session_number: out.session_number, hexad_type: out.hexad_type, settings: out.settings, summary: null,
+        _q: out.question, _hud: { xp: 0, streak: 0, done: 0, total: out.session_total_questions, level: out.difficulty_level } });
       hexadBadge.textContent = `${out.hexad_type}  ·  Session #${out.session_number}`;
       applyHexadUI(out.hexad_type);
       updateHUD(out);
@@ -556,14 +558,20 @@
       if (out.correct) {
         answered = true;
         clearInterval(timerHandle);
+        feedbackBox.classList.remove("incorrect");
         feedbackBox.classList.add("correct");
         feedbackMsg.textContent  = out.feedback_message;
         feedbackExpl.textContent = out.explanation;
         feedbackNudge.textContent= "";
         if (out.difficulty_message) diffMsg.textContent = out.difficulty_message;
+        // Advance saved state to next question so restore never re-answers this one
+        saveState({ ...loadState(), _q: out.next_question || null, _session_done: !out.next_question, _hud: {
+          xp: out.xp, streak: out.streak, done: out.questions_answered,
+          total: out.session_total_questions, level: out.updated_difficulty_level,
+        }});
         if (out.next_question) {
           pendingQuestion = out.next_question;
-          if (hexadType === "Free Spirit") {
+          if (hexadType === "Free Spirit" || hexadType === "Disruptor") {
             challengeWrap.classList.add("visible");
           } else {
             nextWrap.classList.add("visible");
@@ -606,6 +614,10 @@
         "POST"
       );
       updateHUD(out);
+      saveState({ ...loadState(), _q: out.next_question || null, _hud: {
+        xp: out.xp, streak: out.streak, done: out.questions_answered,
+        total: out.session_total_questions, level: out.updated_difficulty_level,
+      }});
       if (out.next_question) {
         renderQuestion(out.next_question);
       } else {
@@ -632,7 +644,7 @@
     clearInterval(timerHandle);
     try {
       const out = await api(`/sessions/${sessionId}/finish?user_id=${state.user_id}`, "POST");
-      saveState({ ...state, session_id: sessionId, summary: out });
+      saveState({ ...state, session_id: sessionId, summary: out, _q: null, _hud: null, _session_done: false });
       window.location.href = "summary.html";
     } catch (e) {
       err.textContent = e?.message || "Could not finish session.";
@@ -699,11 +711,46 @@
     } catch { /* silent */ }
   }
 
-  start().then(() => {
+  // If there's already an active session saved (e.g. user navigated away and back),
+  // restore it instead of starting a brand new session.
+  function restoreHUD() {
+    sessionId = state.session_id;
+    hexadType = state.hexad_type || "Unknown";
+    prevLevel = state._hud?.level ?? 1;
+    applyHexadUI(hexadType);
+    hexadBadge.textContent = `${hexadType}  ·  Session #${state.session_number ?? 1}`;
+    updateHUD({
+      updated_difficulty_level: state._hud?.level ?? 1,
+      xp:                       state._hud?.xp    ?? 0,
+      streak:                   state._hud?.streak ?? 0,
+      questions_answered:       state._hud?.done   ?? 0,
+      session_total_questions:  state._hud?.total  ?? 7,
+    });
+  }
+
+  if (state.session_id && state._session_done) {
+    // Session was complete — restore "click Finish" state without starting a new one
+    restoreHUD();
+    prompt.textContent    = "Session complete!";
+    optionsDiv.innerHTML  = "";
+    submitBtn.disabled    = true;
+    hintBtn.disabled      = true;
+    diffMsg.textContent   = "🏁 Session complete — click Finish.";
+    showToast("📍 Session restored — click Finish to save your results.");
     updateLbArea();
-    // Poll every 10s for all types — badge count needs updating for everyone
     lbPollHandle = setInterval(updateLbArea, 10_000);
-  });
+  } else if (state.session_id && state._q) {
+    restoreHUD();
+    renderQuestion(state._q);
+    showToast("📍 Session restored.");
+    updateLbArea();
+    lbPollHandle = setInterval(updateLbArea, 10_000);
+  } else {
+    start().then(() => {
+      updateLbArea();
+      lbPollHandle = setInterval(updateLbArea, 10_000);
+    });
+  }
 </script>
 </body>
 </html>

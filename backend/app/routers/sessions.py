@@ -331,11 +331,25 @@ def finish(session_id: int, user_id: int, db: Session = Depends(get_db)):
     if not session: raise HTTPException(status_code=404, detail="Session not found")
     session.completed = True; session.ended_at = datetime.utcnow()
     db.commit()
+
+    # Topics where user struggled (wrong or skipped) this session
+    bad_attempts = (
+        db.query(Attempt).join(Question, Attempt.question_id == Question.id)
+        .filter(Attempt.session_id == session_id, Attempt.correct == False)  # noqa
+        .all()
+    )
+    seen_topics: list[str] = []
+    for a in bad_attempts:
+        q = db.query(Question).filter(Question.id == a.question_id).first()
+        if q and q.topic not in seen_topics:
+            seen_topics.append(q.topic)
+
     return FinishOut(
         session_id=session.id,
         questions_answered=session.questions_answered,
         correct_count=session.correct_count,
         first_attempt_correct=session.first_attempt_correct,
+        topics_to_review=seen_topics,
     )
 
 
@@ -351,6 +365,10 @@ def submit_questionnaire(session_id: int, user_id: int, payload: QuestionnaireIn
     db.add(QuestionnaireResponse(
         session_id=session.id, enjoyment=payload.enjoyment,
         frustration=payload.frustration, effort=payload.effort,
+        focused=payload.focused, challenge=payload.challenge,
+        recovered=payload.recovered, hints_helped=payload.hints_helped,
+        satisfied=payload.satisfied, motivated=payload.motivated,
+        favourite_features=payload.favourite_features,
         free_text=payload.free_text,
     ))
     db.commit()

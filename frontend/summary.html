@@ -2,6 +2,9 @@
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Session Summary</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
@@ -140,7 +143,7 @@
 
     <div style="margin-top:16px; text-align:center; display:flex; gap:20px; justify-content:center;">
       <a href="profile.html" class="small">View Profile →</a>
-      <a href="index.html" class="small">← Back to Login</a>
+      <a href="#" class="small" onclick="localStorage.clear(); location.replace('index.html?r=' + Date.now())">← Back to Login</a>
     </div>
   </div>
 
@@ -151,29 +154,47 @@
     const state = loadState();
     if (!state.user_id) window.location.href = "index.html";
 
-    // --- build summary card ---
-    const s = state.summary || {};
-    const accuracy = s.total_questions > 0
-      ? Math.round((s.correct_count / s.total_questions) * 100)
-      : 0;
+    // --- fetch fresh session stats from the DB (never rely on stale localStorage) ---
+    function renderSummaryCard(qTotal, firstCorr, correctCount) {
+      const accuracy = qTotal > 0 ? Math.round((firstCorr / qTotal) * 100) : 0;
+      document.getElementById("summaryCard").innerHTML = `
+        <div class="stat-grid">
+          <div class="stat-tile">
+            <div class="big">${qTotal || "-"}</div>
+            <div class="label">Completed</div>
+          </div>
+          <div class="stat-tile">
+            <div class="big">${firstCorr ?? "-"}</div>
+            <div class="label">1st-Try ✓</div>
+          </div>
+          <div class="stat-tile">
+            <div class="big">${accuracy}%</div>
+            <div class="label">1st-Try Acc.</div>
+          </div>
+        </div>
+        <div class="tiny" style="margin-top:12px; text-align:right;">Session #${state.session_number ?? state.session_id ?? "-"}</div>
+      `;
+    }
 
-    document.getElementById("summaryCard").innerHTML = `
-      <div class="stat-grid">
-        <div class="stat-tile">
-          <div class="big">${s.total_questions ?? "-"}</div>
-          <div class="label">Questions</div>
-        </div>
-        <div class="stat-tile">
-          <div class="big">${s.correct_count ?? "-"}</div>
-          <div class="label">Correct</div>
-        </div>
-        <div class="stat-tile">
-          <div class="big">${accuracy}%</div>
-          <div class="label">Accuracy</div>
-        </div>
-      </div>
-      <div class="tiny" style="margin-top:12px; text-align:right;">Session #${state.session_number ?? state.session_id ?? "-"}</div>
-    `;
+    // Optimistic render from localStorage while API loads
+    const cached = state.summary || {};
+    renderSummaryCard(
+      cached.questions_answered ?? cached.total_questions ?? 0,
+      cached.first_attempt_correct ?? 0,
+      cached.correct_count ?? 0
+    );
+
+    // Always override with fresh data from the DB
+    try {
+      const profile = await api(`/users/${state.user_id}/profile`);
+      const sn = state.session_number ?? null;
+      // Find the session matching the one we just finished; fall back to last session
+      const fresh = (sn != null ? profile.sessions.find(s => s.session_number === sn) : null)
+        ?? profile.sessions[profile.sessions.length - 1];
+      if (fresh) {
+        renderSummaryCard(fresh.questions_answered, fresh.first_attempt_correct, fresh.correct_count);
+      }
+    } catch (e) { /* keep cached render */ }
 
     // --- build Likert rows ---
     function buildLikert(containerId, name) {

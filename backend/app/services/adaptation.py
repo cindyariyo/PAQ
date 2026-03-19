@@ -59,12 +59,11 @@ def update_difficulty(
     if session.strong_correct_streak >= required:
         session.strong_correct_streak = 0
 
-        if hexad == "Free Spirit":
-            return current, "Optional harder question available, take it if you feel ready."
-
         new_level = min(5, current + 1)
         if new_level > current:
-            return new_level, "Difficulty increased. Great work!"
+            msg = ("Optional harder challenge — take it if you're ready!"
+                   if hexad == "Free Spirit" else "Difficulty increased. Great work!")
+            return new_level, msg
         return current, "You're at the top level. Excellent!"
 
     return current, ""

@@ -2,6 +2,9 @@
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Quiz</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
@@ -157,20 +160,66 @@
       color: rgba(255,255,255,0.45); border: 1px solid rgba(255,255,255,0.18);
       border-radius: 6px; padding: 2px 7px;
     }
+
+    /* ── Mini inline leaderboard (Socialiser / Player) ── */
+    .mini-lb {
+      background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px; padding: 10px 14px; margin-bottom: 10px;
+    }
+    .mini-lb-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px;
+    }
+    .mini-lb-title {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
+      text-transform: uppercase; color: rgba(255,255,255,0.35);
+    }
+    .mini-lb-live {
+      display: flex; align-items: center; gap: 4px;
+      font-size: 10px; color: rgba(80,220,140,0.7);
+    }
+    .mini-live-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: rgba(80,220,140,0.85);
+      animation: miniPulse 1.5s ease-in-out infinite;
+    }
+    @keyframes miniPulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .mini-lb-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .mini-lb-row:last-child { border-bottom: none; }
+    .mini-lb-row.mini-me { font-weight: 700; color: rgba(255,255,255,0.95); }
+    .mini-rank { width: 22px; text-align: center; font-size: 14px; flex-shrink: 0; }
+    .mini-code { flex: 1; color: rgba(255,255,255,0.75); }
+    .mini-code .mini-you { font-size: 9px; color: rgba(120,160,255,0.8);
+      background: rgba(120,140,255,0.15); border-radius: 5px; padding: 1px 5px; margin-left: 4px; }
+    .mini-xp { font-size: 12px; font-weight: 600; color: rgba(255,220,80,0.85); white-space: nowrap; }
+    .mini-active { display:inline-block; width:6px; height:6px; border-radius:50%;
+      background:rgba(80,220,140,0.9); margin-left:3px; animation: miniPulse 1.5s ease-in-out infinite; }
+    .lb-waiting {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 14px; border-radius: 12px; margin-bottom: 10px;
+      border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.015);
+      font-size: 13px; color: rgba(255,255,255,0.28);
+    }
   </style>
 </head>
 <body>
 <div class="container">
   <h1 style="margin-bottom:12px;">Quiz Session</h1>
 
-  <!-- ── Leaderboard banner ── -->
-  <a href="leaderboard.html" class="lb-banner">
-    <div class="lb-banner-left">
-      <span class="lb-banner-lock">🏆</span>
-      <span>View Leaderboard</span>
-    </div>
-    <span id="lbBadge" class="lb-banner-badge">...</span>
-  </a>
+  <!-- ── Leaderboard area (content set by JS based on hexad type) ── -->
+  <div id="lbArea">
+    <a href="leaderboard.html" class="lb-banner">
+      <div class="lb-banner-left">
+        <span class="lb-banner-lock">🏆</span>
+        <span id="lbBannerText">View Leaderboard</span>
+      </div>
+      <span id="lbBadge" class="lb-banner-badge">...</span>
+    </a>
+  </div>
 
   <div class="card" id="card" style="padding:16px 20px;">
 
@@ -456,7 +505,7 @@
       const out = await api("/sessions/start", "POST", { user_id: state.user_id });
       sessionId = out.session_id;
       prevLevel = out.difficulty_level ?? 1;
-      saveState({ ...state, session_id: sessionId, session_number: out.session_number, hexad_type: out.hexad_type, settings: out.settings });
+      saveState({ ...state, session_id: sessionId, session_number: out.session_number, hexad_type: out.hexad_type, settings: out.settings, summary: null });
       hexadBadge.textContent = `${out.hexad_type}  ·  Session #${out.session_number}`;
       applyHexadUI(out.hexad_type);
       updateHUD(out);
@@ -556,6 +605,7 @@
         `/sessions/${sessionId}/skip?user_id=${state.user_id}&question_id=${currentQuestion.id}`,
         "POST"
       );
+      updateHUD(out);
       if (out.next_question) {
         renderQuestion(out.next_question);
       } else {
@@ -589,20 +639,70 @@
     }
   };
 
-  start();
+  // Set Philanthropist banner text immediately from saved state (before start() resolves)
+  if ((state.hexad_type || "").trim() === "Philanthropist") {
+    const t = document.getElementById("lbBannerText");
+    if (t) t.textContent = "View Class Progress";
+  }
 
-  // Update leaderboard banner with live participant count
-  api("/leaderboard").then(lb => {
-    const badge = document.getElementById("lbBadge");
-    if (!badge) return;
-    if (lb.total_users >= 2) {
-      badge.textContent = `${lb.total_users} participants`;
-    } else {
-      badge.textContent = "Just you so far";
-    }
-  }).catch(() => {
-    const badge = document.getElementById("lbBadge");
-    if (badge) badge.textContent = "–";
+  let lbPollHandle = null;
+
+  function medalFor(r) { return r===1?"🥇":r===2?"🥈":r===3?"🥉":`#${r}`; }
+
+  function renderMiniLb(lb) {
+    const myName = (state.display_name || "").toLowerCase();
+    const top5   = lb.overall.slice(0, 5);
+    const rows   = top5.map(e => {
+      const isMe = myName && e.display_name.toLowerCase() === myName;
+      return `<div class="mini-lb-row${isMe ? " mini-me" : ""}">
+        <span class="mini-rank">${medalFor(e.rank)}</span>
+        <span class="mini-code">${e.display_name}${isMe ? '<span class="mini-you">you</span>' : ""}
+          ${e.is_active ? '<span class="mini-active"></span>' : ""}</span>
+        <span class="mini-xp">⚡ ${e.total_xp}</span>
+      </div>`;
+    }).join("");
+    document.getElementById("lbArea").innerHTML = `
+      <div class="mini-lb">
+        <div class="mini-lb-header">
+          <span class="mini-lb-title">🏆 Leaderboard</span>
+          <span class="mini-lb-live"><span class="mini-live-dot"></span>Live</span>
+        </div>
+        ${rows}
+      </div>`;
+  }
+
+  function renderLbWaiting() {
+    document.getElementById("lbArea").innerHTML =
+      `<div class="lb-waiting"><span>🏆 Leaderboard</span><span>Waiting for others to join...</span></div>`;
+  }
+
+  async function updateLbArea() {
+    try {
+      const lb  = await api("/leaderboard");
+      const hx  = (hexadType || state.hexad_type || "").trim();
+
+      if (hx === "Socialiser" || hx === "Player") {
+        if (lb.total_users >= 2) renderMiniLb(lb);
+        else                     renderLbWaiting();
+        return;  // no badge to update — area was replaced
+      }
+
+      // Achiever / Free Spirit / Disruptor / Philanthropist — just update badge text
+      const badge = document.getElementById("lbBadge");
+      if (badge) badge.textContent = lb.total_users >= 2 ? `${lb.total_users} participants` : "Just you so far";
+
+      // Confirm Philanthropist text (in case start() hadn't resolved when we initialised)
+      if (hx === "Philanthropist") {
+        const t = document.getElementById("lbBannerText");
+        if (t) t.textContent = "View Class Progress";
+      }
+    } catch { /* silent */ }
+  }
+
+  start().then(() => {
+    updateLbArea();
+    // Poll every 10s for all types — badge count needs updating for everyone
+    lbPollHandle = setInterval(updateLbArea, 10_000);
   });
 </script>
 </body>

@@ -9,6 +9,7 @@ class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     study_code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    display_name: Mapped[str | None] = mapped_column(String(32), unique=True, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     profile: Mapped["UserProfile"] = relationship(back_populates="user", uselist=False)
@@ -77,6 +78,7 @@ class Session(Base):
 
     questions_answered: Mapped[int] = mapped_column(Integer, default=0)
     correct_count: Mapped[int] = mapped_column(Integer, default=0)
+    first_attempt_correct: Mapped[int] = mapped_column(Integer, default=0)
     xp: Mapped[int] = mapped_column(Integer, default=0)
     streak: Mapped[int] = mapped_column(Integer, default=0)
     strong_correct_streak: Mapped[int] = mapped_column(Integer, default=0)

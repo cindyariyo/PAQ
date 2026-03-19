@@ -168,7 +168,7 @@ def start_session(payload: StartSessionIn, db: Session = Depends(get_db)):
     )
     starting_difficulty = max(1, min(5, last.difficulty_level_used)) if last else 1
 
-    prior   = db.query(QuizSession).filter(QuizSession.user_id == payload.user_id).count()
+    prior   = db.query(QuizSession).filter(QuizSession.user_id == payload.user_id, QuizSession.completed == True).count()  # noqa
     session = QuizSession(
         user_id=payload.user_id,
         session_number=prior + 1,
@@ -223,7 +223,7 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
     q = db.query(Question).filter(Question.id == payload.question_id).first()
     if not q: raise HTTPException(status_code=404, detail="Question not found")
 
-    correct    = payload.answer.strip().lower() == q.correct_answer.strip().lower()
+    correct    = payload.answer.strip() == q.correct_answer.strip()
     used_hints = payload.hint_level_shown > 0
     if used_hints: session.used_hint_this_session = True
 
@@ -241,7 +241,11 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
     xp_delta = 5
     if correct:
         session.questions_answered += 1
-        session.correct_count += 1; session.streak += 1; xp_delta += 20
+        session.correct_count += 1
+        session.streak += 1
+        xp_delta += 20
+        if payload.retry_count == 0:
+            session.first_attempt_correct += 1
     else:
         session.streak = 0
     session.xp += xp_delta
@@ -260,9 +264,10 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
     session.difficulty_level_used = new_level
     db.commit()
 
+    session_total = _session_total(session.starting_difficulty)
     seen_ids = {a.question_id for a in db.query(Attempt).filter(Attempt.session_id == session.id).all()}
     next_q   = _pick_question(db, new_level, payload.user_id, seen_ids) \
-               if session.questions_answered < _session_total(new_level) else None
+               if session.questions_answered < session_total else None
 
     return AnswerOut(
         correct=correct,
@@ -273,7 +278,7 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
         xp=session.xp, streak=session.streak,
         questions_answered=session.questions_answered,
         correct_count=session.correct_count,
-        session_total_questions=_session_total(new_level),
+        session_total_questions=session_total,
     )
 
 
@@ -303,15 +308,19 @@ def skip_question(session_id: int, user_id: int, question_id: int, db: Session =
         session.difficulty_level_used -= 1
     db.commit()
 
+    session_total = _session_total(session.starting_difficulty)
     seen_ids = {a.question_id for a in db.query(Attempt).filter(Attempt.session_id == session.id).all()}
     next_q   = _pick_question(db, session.difficulty_level_used, user_id, seen_ids) \
-               if session.questions_answered < _session_total(session.difficulty_level_used) else None
+               if session.questions_answered < session_total else None
 
     return {
         "skipped": True,
         "next_question": _question_to_out(next_q) if next_q else None,
         "questions_answered": session.questions_answered,
-        "session_total_questions": _session_total(session.difficulty_level_used),
+        "session_total_questions": session_total,
+        "updated_difficulty_level": session.difficulty_level_used,
+        "xp": session.xp,
+        "streak": session.streak,
     }
 
 
@@ -321,11 +330,13 @@ def finish(session_id: int, user_id: int, db: Session = Depends(get_db)):
         QuizSession.id == session_id, QuizSession.user_id == user_id).first()
     if not session: raise HTTPException(status_code=404, detail="Session not found")
     session.completed = True; session.ended_at = datetime.utcnow()
-    total   = db.query(Attempt).filter(Attempt.session_id == session.id).count()
-    correct = db.query(Attempt).filter(
-        Attempt.session_id == session.id, Attempt.correct == True).count()  # noqa
     db.commit()
-    return FinishOut(session_id=session.id, total_questions=total, correct_count=correct)
+    return FinishOut(
+        session_id=session.id,
+        questions_answered=session.questions_answered,
+        correct_count=session.correct_count,
+        first_attempt_correct=session.first_attempt_correct,
+    )
 
 
 @router.post("/{session_id}/questionnaire")

@@ -26,8 +26,8 @@ def get_profile(user_id: int, db: Session = Depends(get_db)):
 
     total_xp = sum(s.xp for s in completed_sessions)
     total_answered = sum(s.questions_answered for s in completed_sessions)
-    total_correct = sum(s.correct_count for s in completed_sessions)
-    overall_accuracy = round((total_correct / total_answered) * 100) if total_answered else 0
+    total_first_correct = sum(s.first_attempt_correct for s in completed_sessions)
+    overall_accuracy = round((total_first_correct / total_answered) * 100) if total_answered else 0
 
     session_outs = []
     for s in completed_sessions:
@@ -48,6 +48,7 @@ def get_profile(user_id: int, db: Session = Depends(get_db)):
             difficulty_level_used=s.difficulty_level_used,
             questions_answered=s.questions_answered,
             correct_count=s.correct_count,
+            first_attempt_correct=s.first_attempt_correct,
             xp=s.xp,
             used_hint_this_session=s.used_hint_this_session,
             questionnaire=questionnaire,
@@ -55,6 +56,7 @@ def get_profile(user_id: int, db: Session = Depends(get_db)):
 
     return ProfileOut(
         study_code=user.study_code,
+        display_name=user.display_name,
         hexad_type=hexad_type,
         total_sessions=len(completed_sessions),
         total_xp=total_xp,

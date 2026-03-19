@@ -10,6 +10,17 @@ class AuthOut(BaseModel):
     user_id: int
     study_code: str
     hexad_type: str
+    display_name: Optional[str] = None
+
+
+class SetDisplayNameIn(BaseModel):
+    user_id: int
+    display_name: str
+
+
+class SetDisplayNameOut(BaseModel):
+    ok: bool
+    display_name: str
 
 
 class OnboardingSubmitIn(BaseModel):
@@ -79,8 +90,9 @@ class AnswerOut(BaseModel):
 
 class FinishOut(BaseModel):
     session_id: int
-    total_questions: int
+    questions_answered: int
     correct_count: int
+    first_attempt_correct: int
 
 
 class QuestionnaireIn(BaseModel):
@@ -104,6 +116,7 @@ class ProfileSessionOut(BaseModel):
     difficulty_level_used: int
     questions_answered: int
     correct_count: int
+    first_attempt_correct: int
     xp: int
     used_hint_this_session: bool
     questionnaire: Optional[ProfileQuestionnaireOut]
@@ -111,6 +124,7 @@ class ProfileSessionOut(BaseModel):
 
 class ProfileOut(BaseModel):
     study_code: str
+    display_name: Optional[str] = None
     hexad_type: str
     total_sessions: int
     total_xp: int
@@ -120,7 +134,7 @@ class ProfileOut(BaseModel):
 
 class LeaderboardEntry(BaseModel):
     rank: int
-    study_code: str
+    display_name: str
     total_xp: int
     overall_accuracy: int
     sessions_completed: int
@@ -129,7 +143,7 @@ class LeaderboardEntry(BaseModel):
 
 class SessionRankEntry(BaseModel):
     rank: int
-    study_code: str
+    display_name: str
     xp: int
     accuracy: int
     correct_count: int
@@ -144,5 +158,6 @@ class SessionLeaderboard(BaseModel):
 
 class LeaderboardOut(BaseModel):
     total_users: int
+    total_class_xp: int = 0
     overall: List[LeaderboardEntry]
     sessions: List[SessionLeaderboard]

@@ -2,6 +2,9 @@
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>My Profile</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
@@ -112,7 +115,7 @@
 
     <div style="margin-top:12px; text-align:center; display:flex; gap:16px; justify-content:center;">
       <a href="quiz.html" class="small">← Back to Quiz</a>
-      <a href="index.html" class="small">Logout</a>
+      <a href="#" class="small" onclick="localStorage.clear(); location.replace('index.html?r=' + Date.now())">Logout</a>
     </div>
   </div>
 
@@ -139,11 +142,13 @@
 
       let html = `
         <div style="text-align:center; margin-bottom:16px;">
-          <div class="small" style="margin-bottom:6px; color:rgba(255,255,255,0.45);">Study Code</div>
+          ${p.display_name ? `<div style="font-size:22px; font-weight:800; margin-bottom:4px;">${p.display_name}</div>` : ""}
+          <div class="small" style="margin-bottom:4px; color:rgba(255,255,255,0.45);">Study Code</div>
           <div class="profile-code">${p.study_code}</div><br>
           <span class="hexad-badge">${p.hexad_type}</span>
         </div>
 
+        <h3 style="margin:0 0 10px; font-size:15px;">Overall Stats</h3>
         <div class="stat-grid">
           <div class="stat-tile">
             <div class="big">${p.total_sessions}</div>
@@ -167,7 +172,7 @@
       } else {
         for (const s of p.sessions) {
           const accuracy = s.questions_answered > 0
-            ? Math.round((s.correct_count / s.questions_answered) * 100)
+            ? Math.round((s.first_attempt_correct / s.questions_answered) * 100)
             : 0;
 
           let qrHtml = "";
@@ -190,7 +195,7 @@
                 <span class="session-date">${s.ended_at || s.started_at || ""}</span>
               </div>
               <div class="session-stats">
-                <span>✅ ${s.correct_count}/${s.questions_answered} (${accuracy}%)</span>
+                <span>✅ ${s.first_attempt_correct}/${s.questions_answered} 1st-try (${accuracy}%)</span>
                 <span>⚡ ${s.xp} XP</span>
                 <span>Level ${diffPips(s.difficulty_level_used)}</span>
                 ${s.used_hint_this_session ? "<span>💡 Used hints</span>" : ""}

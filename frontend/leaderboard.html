@@ -2,6 +2,9 @@
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Leaderboard</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
@@ -74,6 +77,18 @@
       color: rgba(255,255,255,0.35); font-size: 14px; line-height: 1.8;
     }
     .waiting-msg .big { font-size: 28px; display: block; margin-bottom: 8px; }
+
+    /* ── Philanthropist class contribution banner ── */
+    .class-contribution {
+      background: linear-gradient(135deg, rgba(80,200,140,0.12), rgba(60,160,120,0.07));
+      border: 1px solid rgba(80,200,140,0.30);
+      border-radius: 14px; padding: 14px 18px; margin-bottom: 14px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .cc-label { font-size: 13px; color: rgba(255,255,255,0.65); line-height: 1.4; }
+    .cc-label strong { display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+      text-transform: uppercase; color: rgba(80,200,140,0.8); margin-bottom: 2px; }
+    .cc-xp { font-size: 28px; font-weight: 800; color: rgba(255,220,80,0.95); white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -93,7 +108,13 @@
     const state = loadState();
     if (!state.user_id) window.location.href = "index.html";
 
-    const myCode = (state.study_code || "").toUpperCase();
+    const myName = (state.display_name || "").toLowerCase();
+    const isPhilanthropist = (state.hexad_type || "").trim() === "Philanthropist";
+
+    if (isPhilanthropist) {
+      document.querySelector("h1").textContent = "Class Progress";
+      document.title = "Class Progress";
+    }
     let activeTab = "tab-overall";
     let pollHandle = null;
 
@@ -103,12 +124,12 @@
 
     function buildOverallRows(entries) {
       return entries.map(e => {
-        const isMe = e.study_code.toUpperCase() === myCode;
+        const isMe = myName && e.display_name.toLowerCase() === myName;
         return `
           <div class="lb-row${isMe ? " me" : ""}">
             <span class="lb-rank">${medalFor(e.rank)}</span>
             <span class="lb-code">
-              ${e.study_code}
+              ${e.display_name}
               ${isMe ? '<span class="me-label">you</span>' : ""}
               ${e.is_active ? '<span class="active-dot" title="Currently playing"></span>' : ""}
             </span>
@@ -123,12 +144,12 @@
 
     function buildSessionRows(entries) {
       return entries.map(e => {
-        const isMe = e.study_code.toUpperCase() === myCode;
+        const isMe = myName && e.display_name.toLowerCase() === myName;
         return `
           <div class="lb-row${isMe ? " me" : ""}">
             <span class="lb-rank">${medalFor(e.rank)}</span>
             <span class="lb-code">
-              ${e.study_code}
+              ${e.display_name}
               ${isMe ? '<span class="me-label">you</span>' : ""}
               ${e.is_active ? '<span class="active-dot" title="Currently playing"></span>' : ""}
             </span>
@@ -176,11 +197,22 @@
 
       const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
+      const classContribHtml = isPhilanthropist ? `
+        <div class="class-contribution">
+          <div class="cc-label">
+            <strong>💡 Class Contribution</strong>
+            Together, everyone in this class has earned
+          </div>
+          <div class="cc-xp">⚡ ${lb.total_class_xp} XP</div>
+        </div>
+      ` : "";
+
       document.getElementById("lbCard").innerHTML = `
         <div class="refresh-row">
           <span><span class="refresh-dot"></span>Live · updates every 10s</span>
           <span>Last: ${now}</span>
         </div>
+        ${classContribHtml}
         <div class="tab-row">${tabRowHtml}</div>
         ${overallHtml}
         ${sessionHtml}

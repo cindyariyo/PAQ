@@ -50,34 +50,42 @@ def get_leaderboard(db: DbSession = Depends(get_db)):
             continue
         acc = round((data["total_correct"] / data["total_answered"]) * 100) if data["total_answered"] else 0
         overall_raw.append({
-            "study_code": users[uid].study_code,
+            "display_name": users[uid].display_name or "Anonymous",
             "total_xp": data["total_xp"],
             "overall_accuracy": acc,
             "sessions_completed": data["sessions_completed"],
             "is_active": data["is_active"],
         })
 
+    total_class_xp = sum(e["total_xp"] for e in overall_raw)
     overall_raw.sort(key=lambda e: (-e["total_xp"], -e["overall_accuracy"]))
     overall = [LeaderboardEntry(rank=i + 1, **e) for i, e in enumerate(overall_raw)]
 
-    # ── Per-session rankings (sessions with 2+ participants) ──
-    session_map: dict[int, list] = {}
+    # ── Per-session rankings (one entry per user per session number) ──
+    # user_id -> session_number -> best session row (highest XP)
+    session_map: dict[int, dict[int, object]] = {}
     for s in sessions:
-        session_map.setdefault(s.session_number, []).append(s)
+        if s.user_id not in users:
+            continue
+        sn = s.session_number
+        uid = s.user_id
+        if sn not in session_map:
+            session_map[sn] = {}
+        # Keep the row with the highest XP for this user in this session number
+        if uid not in session_map[sn] or s.xp > session_map[sn][uid].xp:
+            session_map[sn][uid] = s
 
     session_boards = []
     for sn in sorted(session_map.keys()):
-        entries_for_sn = session_map[sn]
-        if len(entries_for_sn) < 2:
+        user_sessions = session_map[sn]
+        if len(user_sessions) < 2:
             continue
 
         entries_raw = []
-        for s in entries_for_sn:
-            if s.user_id not in users:
-                continue
+        for uid, s in user_sessions.items():
             acc = round((s.correct_count / s.questions_answered) * 100) if s.questions_answered else 0
             entries_raw.append({
-                "study_code": users[s.user_id].study_code,
+                "display_name": users[uid].display_name or "Anonymous",
                 "xp": s.xp,
                 "accuracy": acc,
                 "correct_count": s.correct_count,
@@ -89,4 +97,4 @@ def get_leaderboard(db: DbSession = Depends(get_db)):
         entries = [SessionRankEntry(rank=i + 1, **e) for i, e in enumerate(entries_raw)]
         session_boards.append(SessionLeaderboard(session_number=sn, entries=entries))
 
-    return LeaderboardOut(total_users=total_users, overall=overall, sessions=session_boards)
+    return LeaderboardOut(total_users=total_users, total_class_xp=total_class_xp, overall=overall, sessions=session_boards)

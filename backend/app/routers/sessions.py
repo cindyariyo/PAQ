@@ -13,6 +13,7 @@ from ..schemas import (
     AnswerIn, AnswerOut, HintOut, FinishOut, QuestionnaireIn
 )
 from ..services.adaptation import hint_level_from_rules, update_difficulty
+from ..services.cross_session_adaptation import adapt_cross_session
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -157,7 +158,7 @@ def _session_floor(starting_difficulty: int) -> int:
 @router.post("/start", response_model=StartSessionOut)
 def start_session(payload: StartSessionIn, db: Session = Depends(get_db)):
     profile  = _get_profile(db, payload.user_id)
-    settings = json.loads(profile.settings_json or "{}")
+    base_settings = json.loads(profile.settings_json or "{}")
 
     # ── Carry forward difficulty from last completed session ──
     last = (
@@ -167,6 +168,22 @@ def start_session(payload: StartSessionIn, db: Session = Depends(get_db)):
         .first()
     )
     starting_difficulty = max(1, min(5, last.difficulty_level_used)) if last else 1
+
+    # ── Cross-session adaptation ──
+    last_qr = (
+        db.query(QuestionnaireResponse)
+        .filter(QuestionnaireResponse.session_id == last.id)
+        .first()
+    ) if last else None
+    settings = adapt_cross_session(last, last_qr, base_settings, profile.hexad_type)
+
+    # Apply difficulty_offset (clamp to 1-5)
+    offset = settings.get("difficulty_offset", 0)
+    starting_difficulty = max(1, min(5, starting_difficulty + offset))
+
+    # Persist adapted settings back to profile
+    profile.settings_json = json.dumps(settings)
+    db.add(profile)
 
     prior   = db.query(QuizSession).filter(QuizSession.user_id == payload.user_id, QuizSession.completed == True).count()  # noqa
     session = QuizSession(
@@ -238,7 +255,14 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
     if correct: _mark_correct(db, payload.user_id, q.id)
     else:       _mark_seen(db, payload.user_id, q.id)
 
+    settings     = json.loads(profile.settings_json or "{}")
+    xp_mult      = float(settings.get("xp_multiplier", 1.0))
+    effort_xp    = bool(settings.get("effort_xp", False))
+    streak_shield= bool(settings.get("streak_shield", False))
+
     xp_delta = 5
+    if effort_xp:
+        xp_delta += 5  # bonus for trying hard regardless of correctness
     if correct:
         session.questions_answered += 1
         session.correct_count += 1
@@ -247,7 +271,16 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
         if payload.retry_count == 0:
             session.first_attempt_correct += 1
     else:
-        session.streak = 0
+        if streak_shield and session.streak > 0:
+            # One-time shield: absorb the streak break
+            settings["streak_shield_active"] = False
+            settings["streak_shield"] = False   # consume the shield
+            profile.settings_json = json.dumps(settings)
+            db.add(profile)
+            # streak stays intact
+        else:
+            session.streak = 0
+    xp_delta = round(xp_delta * xp_mult)
     session.xp += xp_delta
 
     # ── Difficulty update — floor = starting_difficulty - 1 (min 1) ──

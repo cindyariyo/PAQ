@@ -346,6 +346,7 @@
   let timerHandle     = null;
   let prevLevel       = 1;
   let hexadType       = "Unknown";
+  let sessionSettings = state.settings || {};
 
   let toastTimer = null;
   function showToast(msg, duration = 3000) {
@@ -364,8 +365,12 @@
       showToast(`🏆 Mastery Level Up! You're now at Level ${lvl}`);
     }
     prevLevel = lvl;
-    document.getElementById("xpVal").textContent     = data.xp ?? 0;
-    document.getElementById("streakVal").textContent = data.streak ?? 0;
+    document.getElementById("xpVal").textContent = data.xp ?? 0;
+    const streakEl = document.getElementById("streakVal");
+    const shielded = sessionSettings.streak_shield;
+    streakEl.textContent = shielded
+      ? `${data.streak ?? 0} 🛡`
+      : `${data.streak ?? 0}`;
     const done  = data.questions_answered ?? 0;
     const total = data.session_total_questions ?? 7;
     progressText.textContent = `${done} / ${total}`;
@@ -401,14 +406,19 @@
   // Level 4: hint1=80s,  hint2=110s
   // Level 5: hint1=110s, hint2=140s
   function hintThresholds(level) {
-    const thresholds = {
+    const base = {
       1: { h1: 45,  h2: 75  },
       2: { h1: 45,  h2: 75  },
       3: { h1: 55,  h2: 85  },
       4: { h1: 80,  h2: 110 },
       5: { h1: 110, h2: 140 },
     };
-    return thresholds[level] ?? { h1: 45, h2: 75 };
+    const t   = base[level] ?? { h1: 45, h2: 75 };
+    const agg = sessionSettings.hint_aggressiveness || "normal";
+    // "high" → hints appear 30% sooner; "low" → 35% later
+    if (agg === "high") return { h1: Math.round(t.h1 * 0.7), h2: Math.round(t.h2 * 0.7) };
+    if (agg === "low")  return { h1: Math.round(t.h1 * 1.35), h2: Math.round(t.h2 * 1.35) };
+    return t;
   }
 
   function startHintTimer() {
@@ -438,7 +448,7 @@
       );
       hintLevelShown = out.hint_level;
       showHintCard(out.hint_level, out.hint_text);
-      if (auto && targetLevel === 1) showToast("💡 Hint appeared — taking a while?");
+      if (auto && targetLevel === 1) showToast("💡 Hint appeared, taking a while?");
     } catch (_) { /* silent */ }
   }
 
@@ -487,7 +497,7 @@
       card.classList.add("achiever-mode");
     }
 
-    const tips = {
+    const tipsDefault = {
       "Player":        ["Go for quick wins; fast + correct = level up.", "Try one attempt before hints for max XP.", "Keep streaks alive to farm XP."],
       "Achiever":      ["No-hint + under 40s answers level you up faster.", "Use hints only as a last resort.", "Focus on accuracy over speed."],
       "Socialiser":    ["Hints are normal; many learners use them.", "Steady progress matters more than speed.", "Review explanations to improve over time."],
@@ -496,23 +506,51 @@
       "Disruptor":     ["Try an alternative method if your first fails.", "Trace with small examples mentally.", "Use Hint 1 then attempt immediately."],
       "Unknown":       ["Answer quickly + correctly to level up.", "Hints help but reduce your strong-correct streak.", "Streak boosts momentum."],
     };
+    // "challenge" variant: push harder; "recovery" variant: softer + encouragement
+    const tipsChallenge = {
+      "Player":        ["Push for no-hint, fast answers to maximise XP.", "Aim for a 5+ streak this session."],
+      "Achiever":      ["Try to beat last session's accuracy.", "Only use hints if totally stuck — mastery counts."],
+      "Socialiser":    ["See if you can finish ahead of others this round.", "Consistent correct answers build your rank."],
+      "Free Spirit":   ["Take every optional challenge offered to you.", "Explore a different strategy on each question."],
+      "Philanthropist":["Tackle the tricky ones — your understanding helps others.", "Aim to explain the answer in your head before selecting."],
+      "Disruptor":     ["Find the edge case first, then work backwards.", "Try to solve each question unconventionally."],
+      "Unknown":       ["Push for no-hint, quick answers.", "Aim for a longer streak than last time."],
+    };
+    const tipsRecovery = {
+      "Player":        ["Every question earns XP — keep going.", "A wrong answer isn't a loss; it's data."],
+      "Achiever":      ["Use hints freely — understanding beats speed right now.", "Small improvements each session add up."],
+      "Socialiser":    ["Lots of learners find these tricky — you're not alone.", "Take your time; accuracy matters more than pace."],
+      "Free Spirit":   ["Skip optional challenges if they feel too much right now.", "Explore at your own pace — no pressure."],
+      "Philanthropist":["Read hints and explanations carefully; depth over speed.", "Each session builds on the last — be patient."],
+      "Disruptor":     ["Use hints as tools, not shortcuts.", "Break each problem into smaller pieces before guessing."],
+      "Unknown":       ["Use hints when stuck — they're there to help.", "Focus on understanding, not speed."],
+    };
+
+    const variant = sessionSettings.tips_variant || "default";
+    const tipsMap = variant === "challenge" ? tipsChallenge
+                  : variant === "recovery"  ? tipsRecovery
+                  : tipsDefault;
+
     document.getElementById("tipsTitle").textContent = "Tips For You";
     document.getElementById("tipsList").innerHTML =
-      (tips[hexad] || tips["Unknown"]).slice(0, 2).map(t => `<li>${t}</li>`).join("");
+      (tipsMap[hexad] || tipsDefault["Unknown"]).slice(0, 2).map(t => `<li>${t}</li>`).join("");
   }
 
   async function start() {
     try {
       const out = await api("/sessions/start", "POST", { user_id: state.user_id });
-      sessionId = out.session_id;
-      prevLevel = out.difficulty_level ?? 1;
+      sessionId      = out.session_id;
+      prevLevel      = out.difficulty_level ?? 1;
+      sessionSettings= out.settings || {};
       saveState({ ...state, session_id: sessionId, session_number: out.session_number, hexad_type: out.hexad_type, settings: out.settings, summary: null,
         _q: out.question, _hud: { xp: 0, streak: 0, done: 0, total: out.session_total_questions, level: out.difficulty_level } });
       hexadBadge.textContent = `${out.hexad_type}  ·  Session #${out.session_number}`;
       applyHexadUI(out.hexad_type);
       updateHUD(out);
       renderQuestion(out.question);
-      showToast("🎮 Session started! Earn XP and build a streak.");
+      // Show personalised start message if available, else default
+      const startMsg = sessionSettings.session_start_msg || "🎮 Session started! Earn XP and build a streak.";
+      showToast(startMsg, 5000);
     } catch (e) {
       err.textContent = e?.message || "Could not start session. Is the backend running?";
     }
@@ -554,6 +592,12 @@
 
       updateHUD(out);
       feedbackBox.style.display = "block";
+
+      // Detect streak shield activation: wrong answer but streak didn't drop to 0
+      if (!out.correct && sessionSettings.streak_shield && (out.streak ?? 0) > 0) {
+        sessionSettings.streak_shield = false;
+        showToast("🛡 Streak shield activated — your streak is protected this time!", 4000);
+      }
 
       if (out.correct) {
         answered = true;
@@ -692,8 +736,9 @@
     try {
       const lb  = await api("/leaderboard");
       const hx  = (hexadType || state.hexad_type || "").trim();
+      const forceLb = sessionSettings.force_leaderboard || false;
 
-      if (hx === "Socialiser" || hx === "Player") {
+      if (hx === "Socialiser" || hx === "Player" || forceLb) {
         if (lb.total_users >= 2) renderMiniLb(lb);
         else                     renderLbWaiting();
         return;  // no badge to update — area was replaced

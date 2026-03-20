@@ -36,14 +36,6 @@ def seed_questions(db: Session):
              explanation="'char' is Java's primitive for a single character, written with single quotes. String holds a sequence of characters — char holds exactly one."),
 
         dict(topic="Java Basics", difficulty=1,
-             prompt="Which symbol starts a single-line comment in Java?",
-             options=["//", "##", "/*", "--"],
-             correct_answer="//",
-             hint_1="Think of the C-style comment syntax.",
-             hint_2="Two forward slashes comment out everything after them on that line.",
-             explanation="// starts a single-line comment. /* ... */ is for multi-line comments. ## and -- are not Java syntax."),
-
-        dict(topic="Java Basics", difficulty=1,
              prompt="Which of these is a valid boolean value in Java?",
              options=["true", "True", "TRUE", "1"],
              correct_answer="true",

@@ -2,48 +2,124 @@
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>FYP Adaptive Quiz - MVP</title>
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    .step { display: none; }
+    .step.active { display: block; }
+    .name-rules {
+      font-size: 11px;
+      color: rgba(255,255,255,0.4);
+      margin-top: 6px;
+      line-height: 1.6;
+    }
+  </style>
 </head>
 <body>
-  <h1>FYP Adaptive Quiz (MVP)</h1>
+  <h1>Get Quizzing!</h1>
 
-  <div class="card">
-    <p class="small">Enter any Study Code (e.g. DEMO01). If it doesn’t exist, the backend creates it.</p>
-
+  <!-- Step 1: Study Code -->
+  <div class="card step active" id="step1">
+    <p class="small">Enter your Study Code</p>
     <label>Study Code</label>
-    <input id="code" placeholder="DEMO01" />
-
+    <input id="code" placeholder="xxxxxx" />
     <div class="row" style="margin-top:12px;">
-      <button id="loginBtn">Login</button>
-      <span id="status" class="small"></span>
+      <button id="loginBtn">Continue</button>
+      <span id="status1" class="small"></span>
+    </div>
+  </div>
+
+  <!-- Step 2: Display Name (only shown if not yet set) -->
+  <div class="card step" id="step2">
+    <p class="small">Choose a display name visible to others on the leaderboard.<br>Your study code stays private.</p>
+    <label>Display Name</label>
+    <input id="nameInput" placeholder="e.g. StarCoder99" maxlength="20" autocomplete="off" />
+    <div class="name-rules">2–20 characters · letters, numbers, spaces, hyphens, underscores only</div>
+    <div class="row" style="margin-top:12px;">
+      <button id="nameBtn">Save & Start</button>
+      <span id="status2" class="small"></span>
     </div>
   </div>
 
   <script type="module">
-    import { api, saveState } from "./api.js";
+    import { api, saveState, loadState } from "./api.js";
 
-  document.getElementById("loginBtn").onclick = async () => {
-    const code = document.getElementById("code").value.trim();
-    const status = document.getElementById("status");
+    const BLOCKED = [
+      "fuck","shit","bitch","cunt","dick","cock","pussy","bastard",
+      "whore","slut","nigger","nigga","faggot","piss","wank","twat",
+      "bollocks","arse","asshole","arsehole","retard","spastic"
+    ];
 
-    if (!code) {
-      status.textContent = "Please enter a Study Code.";
-      return;
+    function hasProfanity(s) {
+      const clean = s.toLowerCase().replace(/[^a-z]/g, "");
+      return BLOCKED.some(w => clean.includes(w));
     }
 
-    status.textContent = "Logging in...";
-
-    try {
-      const out = await api("/auth/login", "POST", { study_code: code });
-      saveState({ user_id: out.user_id, study_code: out.study_code, hexad_type: out.hexad_type });
-      status.textContent = `Logged in. Hexad: ${out.hexad_type}`;
-      window.location.href = (out.hexad_type === "Unknown") ? "onboarding.html" : "quiz.html";
-    } catch (e) {
-      status.textContent = e?.message ? e.message : JSON.stringify(e);
-      console.error("Login error:", e);
+    function isValidName(s) {
+      return /^[a-zA-Z0-9 _-]{2,20}$/.test(s);
     }
-  };
+
+    // If browser restores this page from bfcache, force a true fresh reload
+    window.addEventListener("pageshow", (e) => { if (e.persisted) location.reload(); });
+
+    document.getElementById("loginBtn").onclick = async () => {
+      const code   = document.getElementById("code").value.trim();
+      const status = document.getElementById("status1");
+      if (!code) { status.textContent = "Please enter a Study Code."; return; }
+
+      status.textContent = "Logging in...";
+      try {
+        const out = await api("/auth/login", "POST", { study_code: code });
+        saveState({ user_id: out.user_id, study_code: out.study_code, hexad_type: out.hexad_type, display_name: out.display_name });
+        status.textContent = "";
+
+        if (out.display_name) {
+          // Returning user — already has a display name, go straight in
+          window.location.href = out.hexad_type === "Unknown" ? "onboarding.html" : "quiz.html";
+        } else {
+          // New user — ask for a display name
+          document.getElementById("step1").classList.remove("active");
+          document.getElementById("step2").classList.add("active");
+          document.getElementById("nameInput").focus();
+        }
+      } catch (e) {
+        status.textContent = e?.message ?? "Login failed.";
+      }
+    };
+
+    document.getElementById("nameBtn").onclick = async () => {
+      const name   = document.getElementById("nameInput").value.trim();
+      const status = document.getElementById("status2");
+
+      if (!isValidName(name)) {
+        status.textContent = "2–20 characters, letters/numbers/spaces/hyphens/underscores only.";
+        return;
+      }
+      if (hasProfanity(name)) {
+        status.textContent = "That name isn't allowed — please choose another.";
+        return;
+      }
+
+      // Read from localStorage — works even if page was reloaded or bfcache restored
+      const saved = loadState();
+      if (!saved.user_id) { status.textContent = "Session expired — please re-enter your Study Code."; document.getElementById("step2").classList.remove("active"); document.getElementById("step1").classList.add("active"); return; }
+
+      status.textContent = "Checking...";
+      try {
+        const out = await api("/auth/set-display-name", "POST", { user_id: saved.user_id, display_name: name });
+        saveState({ ...saved, display_name: out.display_name });
+        window.location.href = saved.hexad_type === "Unknown" ? "onboarding.html" : "quiz.html";
+      } catch (e) {
+        status.textContent = e?.message ?? "Could not save name.";
+      }
+    };
+
+    // Allow Enter key on both inputs
+    document.getElementById("code").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("loginBtn").click(); });
+    document.getElementById("nameInput").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("nameBtn").click(); });
   </script>
 </body>
 </html>

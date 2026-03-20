@@ -2,53 +2,142 @@
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Onboarding</title>
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    .q-block {
+      margin-bottom: 22px;
+      padding: 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.12);
+    }
+    .q-block .q-text {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    .scale-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .scale-row label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      padding: 8px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.15);
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+      transition: background 0.15s, border-color 0.15s;
+      margin-top: 0;
+    }
+    .scale-row label:hover {
+      background: rgba(255,255,255,0.10);
+    }
+    .scale-row input[type="radio"] {
+      width: auto;
+      accent-color: rgba(120,140,255,0.9);
+    }
+    .scale-row input[type="radio"]:checked + span {
+      color: rgba(255,255,255,1);
+      font-weight: 700;
+    }
+    .scale-row label:has(input:checked) {
+      background: rgba(120,140,255,0.20);
+      border-color: rgba(120,140,255,0.55);
+    }
+    .scale-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: rgba(255,255,255,0.45);
+      margin-top: 4px;
+      padding: 0 2px;
+    }
+  </style>
 </head>
 <body>
-  <h1>Onboarding (Hexad - MVP)</h1>
+  <div class="container">
+    <h1>Quick Setup</h1>
 
-  <div class="card" id="qCard">Loading...</div>
-  <button id="submitBtn">Submit</button>
-  <p id="status" class="small"></p>
+    <div class="card" style="margin-bottom:16px;">
+      <p class="small" style="margin:0;">
+        Rate how much each statement applies to you (1 = not at all, 5 = very much).
+        This helps personalise your experience.
+      </p>
+    </div>
+
+    <div class="card" id="qCard">
+      <p class="small">Loading questions...</p>
+    </div>
+
+    <button class="btn-primary" id="submitBtn" style="margin-top:16px; width:100%;">
+      Save &amp; Start Quiz →
+    </button>
+    <p id="status" class="small" style="margin-top:8px;"></p>
+  </div>
 
   <script type="module">
     import { api, loadState, saveState } from "./api.js";
 
+    // session guard
     const state = loadState();
-    const qCard = document.getElementById("qCard");
+    if (!state.user_id) window.location.href = "index.html";
+
+    const qCard  = document.getElementById("qCard");
     const status = document.getElementById("status");
-    let questions = [];
+
+    const SCALE_LABELS = { 1:"1 – Not at all", 2:"2", 3:"3 – Neutral", 4:"4", 5:"5 – Very much" };
 
     async function load() {
-      questions = await api("/onboarding/questions");
-      qCard.innerHTML = questions.map(q => `
-        <div style="margin-bottom:12px;">
-          <div><b>${q.text}</b></div>
-          <label>Score (1-5)</label>
-          <select data-qid="${q.id}">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3" selected>3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-          </select>
-        </div>
-      `).join("");
+      try {
+        const questions = await api("/onboarding/questions");
+        qCard.innerHTML = questions.map(q => `
+          <div class="q-block">
+            <div class="q-text">${q.text}</div>
+            <div class="scale-row">
+              ${[1,2,3,4,5].map(v => `
+                <label>
+                  <input type="radio" name="${q.id}" value="${v}" ${v===3?"checked":""}>
+                  <span>${v}</span>
+                </label>
+              `).join("")}
+            </div>
+            <div class="scale-labels">
+              <span>Not at all</span><span>Very much</span>
+            </div>
+          </div>
+        `).join("");
+      } catch (e) {
+        qCard.innerHTML = `<p class="small" style="color:rgba(255,100,100,0.8);">Failed to load questions: ${e.message}</p>`;
+      }
     }
 
     document.getElementById("submitBtn").onclick = async () => {
-      status.textContent = "Submitting...";
+      status.textContent = "Saving...";
       const answers = {};
-      document.querySelectorAll("select[data-qid]").forEach(sel => {
-        answers[sel.dataset.qid] = parseInt(sel.value, 10);
+      // collect one radio per question
+      document.querySelectorAll(".q-block").forEach(block => {
+        const checked = block.querySelector("input[type='radio']:checked");
+        if (checked) answers[checked.name] = parseInt(checked.value, 10);
       });
 
       try {
         const out = await api("/onboarding/submit", "POST", { user_id: state.user_id, answers });
         saveState({ ...state, hexad_type: out.hexad_type, settings: out.settings });
-        status.textContent = `Saved. Hexad = ${out.hexad_type}`;
-        window.location.href = "quiz.html";
+        status.textContent = `Profile saved — Hexad type: ${out.hexad_type}`;
+        setTimeout(() => { window.location.href = "quiz.html"; }, 600);
       } catch (e) {
         status.textContent = e.message;
       }

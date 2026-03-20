@@ -1,0 +1,216 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>My Profile</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .profile-code {
+      display: inline-block;
+      background: rgba(120,140,255,0.18);
+      border: 1px solid rgba(120,140,255,0.45);
+      border-radius: 10px;
+      padding: 6px 18px;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: rgba(255,255,255,0.95);
+      margin-bottom: 6px;
+    }
+    .hexad-badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 18px;
+    }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .stat-tile {
+      background: rgba(0,0,0,0.18);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 14px;
+      text-align: center;
+    }
+    .stat-tile .big {
+      font-size: 26px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .stat-tile .label {
+      font-size: 11px;
+      color: rgba(255,255,255,0.5);
+    }
+    .session-card {
+      background: rgba(0,0,0,0.18);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+    .session-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .session-title {
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .session-date {
+      font-size: 11px;
+      color: rgba(255,255,255,0.45);
+    }
+    .session-stats {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 6px;
+    }
+    .session-stats span { white-space: nowrap; }
+    .q-ratings {
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+      margin-top: 6px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      padding-top: 6px;
+    }
+    .diff-pip {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.25);
+      margin-right: 2px;
+    }
+    .diff-pip.active { background: rgba(120,140,255,0.85); }
+    .empty-state {
+      text-align: center;
+      color: rgba(255,255,255,0.4);
+      padding: 32px 0;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>My Profile</h1>
+
+    <div class="card" id="profileCard">
+      <div class="small" style="margin-bottom:6px;">Loading...</div>
+    </div>
+
+    <div style="margin-top:12px; text-align:center; display:flex; gap:16px; justify-content:center;">
+      <a href="quiz.html" class="small">← Back to Quiz</a>
+      <a href="#" class="small" onclick="localStorage.clear(); location.replace('index.html?r=' + Date.now())">Logout</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { api, loadState } from "./api.js";
+
+    const state = loadState();
+    if (!state.user_id) window.location.href = "index.html";
+
+    function diffPips(level) {
+      return [1,2,3,4,5].map(i =>
+        `<span class="diff-pip${i <= level ? " active" : ""}"></span>`
+      ).join("");
+    }
+
+    function ratingBar(val) {
+      const filled = "★".repeat(val);
+      const empty  = "☆".repeat(5 - val);
+      return `<span style="color:rgba(255,200,80,0.9);">${filled}</span><span style="color:rgba(255,255,255,0.2);">${empty}</span>`;
+    }
+
+    try {
+      const p = await api(`/users/${state.user_id}/profile`);
+
+      let html = `
+        <div style="text-align:center; margin-bottom:16px;">
+          ${p.display_name ? `<div style="font-size:22px; font-weight:800; margin-bottom:4px;">${p.display_name}</div>` : ""}
+          <div class="small" style="margin-bottom:4px; color:rgba(255,255,255,0.45);">Study Code</div>
+          <div class="profile-code">${p.study_code}</div><br>
+          <span class="hexad-badge">${p.hexad_type}</span>
+        </div>
+
+        <h3 style="margin:0 0 10px; font-size:15px;">Overall Stats</h3>
+        <div class="stat-grid">
+          <div class="stat-tile">
+            <div class="big">${p.total_sessions}</div>
+            <div class="label">Sessions</div>
+          </div>
+          <div class="stat-tile">
+            <div class="big">${p.total_xp}</div>
+            <div class="label">Total XP</div>
+          </div>
+          <div class="stat-tile">
+            <div class="big">${p.overall_accuracy}%</div>
+            <div class="label">Accuracy</div>
+          </div>
+        </div>
+
+        <h3 style="margin:0 0 10px; font-size:15px;">Session History</h3>
+      `;
+
+      if (p.sessions.length === 0) {
+        html += `<div class="empty-state">No completed sessions yet.</div>`;
+      } else {
+        for (const s of p.sessions) {
+          const accuracy = s.questions_answered > 0
+            ? Math.round((s.first_attempt_correct / s.questions_answered) * 100)
+            : 0;
+
+          let qrHtml = "";
+          if (s.questionnaire) {
+            const q = s.questionnaire;
+            qrHtml = `
+              <div class="q-ratings">
+                Enjoyment ${ratingBar(q.enjoyment)} &nbsp;
+                Frustration ${ratingBar(q.frustration)} &nbsp;
+                Effort ${ratingBar(q.effort)}
+                ${q.free_text ? `<div style="margin-top:4px; font-style:italic;">"${q.free_text}"</div>` : ""}
+              </div>
+            `;
+          }
+
+          html += `
+            <div class="session-card">
+              <div class="session-header">
+                <span class="session-title">Session ${s.session_number}</span>
+                <span class="session-date">${s.ended_at || s.started_at || ""}</span>
+              </div>
+              <div class="session-stats">
+                <span>✅ ${s.first_attempt_correct}/${s.questions_answered} 1st-try (${accuracy}%)</span>
+                <span>⚡ ${s.xp} XP</span>
+                <span>Level ${diffPips(s.difficulty_level_used)}</span>
+                ${s.used_hint_this_session ? "<span>💡 Used hints</span>" : ""}
+              </div>
+              ${qrHtml}
+            </div>
+          `;
+        }
+      }
+
+      document.getElementById("profileCard").innerHTML = html;
+    } catch (e) {
+      document.getElementById("profileCard").innerHTML =
+        `<div class="small" style="color:rgba(255,100,100,0.8);">Error: ${e.message}</div>`;
+    }
+  </script>
+</body>
+</html>

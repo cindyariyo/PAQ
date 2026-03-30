@@ -151,7 +151,7 @@ def seed_questions(db: Session):
                          explanation="An object is a specific instance of a class. When you use the new keyword, you create an object based on the class definition. Each object has its own copy of the class fields."),
 
                     # ═══════════════════════════════════════════════════════════════════
-                    # TIER 2 — Applied Basics (Single concept with light reasoning)
+                    # TIER 2 — Applied Basics (Single concept, minimal reasoning)
                     # ═══════════════════════════════════════════════════════════════════
 
                     dict(topic="Java Basics", difficulty=2,
@@ -819,7 +819,7 @@ def seed_questions(db: Session):
                     dict(topic="OOP", difficulty=5,
                          prompt="What is the output?\n\nclass Animal {\n    Animal() { \n        speak(); \n    }\n    void speak() { \n        System.out.print(\"Animal \"); \n    }\n}\n\nclass Dog extends Animal {\n    Dog() { \n        super();\n        speak(); \n    }\n    void speak() { \n        System.out.print(\"Dog \"); \n    }\n}\n\nnew Dog();",
                          options=["Animal Animal", "Animal Dog", "Dog Animal", "Dog Dog"],
-                         correct_answer="Animal Dog",
+                         correct_answer="Dog Dog",
                          hint_1="When a Dog object is created, the Animal constructor runs first.",
                          hint_2="In the Animal constructor, speak() is called. Which speak() runs? The one from Dog because the object is a Dog at runtime.",
                          explanation="When new Dog() is called, the Animal constructor runs first. Inside Animal(), speak() is called. Since the actual object is a Dog, the overridden Dog.speak() executes, printing 'Dog'. Then the Dog constructor runs and calls speak() again, printing 'Dog' again. Total: 'Dog Dog'."),

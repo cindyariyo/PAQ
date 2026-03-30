@@ -7,14 +7,29 @@ backend/*.db
 backend/*.sqlite
 backend/*.sqlite3
 
+# Generated analysis/export files (run scoring.py post-study to recreate)
+backend/*.csv
+backend/engagement_classifications.csv
+
+# Data folder — track the folder itself but not the DB inside it
+data/fyp.db
+
 # Frontend
 frontend/node_modules/
 frontend/build/
 
+# Python
 .venv/
 __pycache__/
-.vscode/
+**/__pycache__/
+*.pyc
+
+# Environment / secrets
 .env
+.env.local
+
+# Editor
+.vscode/
 
 project_code.txt
 

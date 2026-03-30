@@ -50,7 +50,7 @@ def update_difficulty(
 
     # ── Strong correct ──
     # Time limit scales with difficulty: +5s at level 4
-    strong_time_limit = 45 if difficulty_level == 4 else 40
+    strong_time_limit = 50 if difficulty_level >= 5 else (45 if difficulty_level == 4 else 40)
     strong_correct = correct and (not used_hint) and (time_spent < strong_time_limit)
     if strong_correct:
         session.strong_correct_streak += 1

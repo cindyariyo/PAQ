@@ -238,6 +238,13 @@ def get_hint(session_id: int, user_id: int, question_id: int,
     profile = _get_profile(db, user_id)
     q = db.query(Question).filter(Question.id == question_id).first()
     if not q: raise HTTPException(status_code=404, detail="Question not found")
+    # Apply hint_aggressiveness from cross-session adaptation
+    settings = json.loads(profile.settings_json or "{}")
+    aggressiveness = settings.get("hint_aggressiveness", "normal")
+    if aggressiveness == "high":
+        time_spent_seconds = int(time_spent_seconds * 1.4)  # hints trigger ~40% sooner
+    elif aggressiveness == "low":
+        time_spent_seconds = int(time_spent_seconds * 0.7)  # hints trigger ~30% later
     level  = max(1, hint_level_from_rules(time_spent_seconds, retry_count, current_hint_level))
     prefix = _hexad_prefix(profile.hexad_type)
     if level == 1:
@@ -277,14 +284,14 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
     effort_xp    = bool(settings.get("effort_xp", False))
     streak_shield= bool(settings.get("streak_shield", False))
 
-    xp_delta = 5
+    xp_delta = 1  # 1 XP for any attempt (effort)
     if effort_xp:
-        xp_delta += 5  # bonus for trying hard regardless of correctness
+        xp_delta += 5  # cross-session bonus: reward effort regardless of correctness
     if correct:
         session.questions_answered += 1
         session.correct_count += 1
         session.streak += 1
-        xp_delta += 20
+        xp_delta += 24  # total 25 for correct (1 base + 24), or 30 with effort_xp
         if payload.retry_count == 0:
             session.first_attempt_correct += 1
     else:
@@ -301,7 +308,9 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
     session.xp += xp_delta
 
     # ── Difficulty update — floor = starting_difficulty - 1 (min 1) ──
-    floor = max(1, session.starting_difficulty - 1)
+    # protect_difficulty (cross-session): frustrated/low-motivation users don't drop levels
+    protect = bool(settings.get("protect_difficulty", False))
+    floor = session.difficulty_level_used if protect else max(1, session.starting_difficulty - 1)
     new_level, diff_msg = update_difficulty(
         session,
         correct=correct,

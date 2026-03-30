@@ -177,3 +177,9 @@ class LeaderboardOut(BaseModel):
     total_class_xp: int = 0
     overall: List[LeaderboardEntry]
     sessions: List[SessionLeaderboard]
+
+
+class StudySummaryOut(BaseModel):
+    complete: bool
+    sessions_done: int
+    topics_to_review: List[str] = []

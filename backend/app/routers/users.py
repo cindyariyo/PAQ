@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import User, UserProfile, Session as QuizSession, Attempt, QuestionnaireResponse
-from ..schemas import ProfileOut, ProfileSessionOut, ProfileQuestionnaireOut
+from ..models import User, UserProfile, Session as QuizSession, Attempt, QuestionnaireResponse, Question
+from ..schemas import ProfileOut, ProfileSessionOut, ProfileQuestionnaireOut, StudySummaryOut
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -69,4 +69,33 @@ def get_profile(user_id: int, db: Session = Depends(get_db)):
         total_xp=total_xp,
         overall_accuracy=overall_accuracy,
         sessions=session_outs,
+    )
+
+
+@router.get("/{user_id}/study_summary", response_model=StudySummaryOut)
+def get_study_summary(user_id: int, db: Session = Depends(get_db)):
+    completed_sessions = (
+        db.query(QuizSession)
+        .filter(QuizSession.user_id == user_id, QuizSession.completed == True)  # noqa
+        .all()
+    )
+    sessions_done = len(completed_sessions)
+
+    # Aggregate topics from wrong attempts across all sessions
+    topics: list[str] = []
+    for s in completed_sessions:
+        bad = (
+            db.query(Attempt)
+            .filter(Attempt.session_id == s.id, Attempt.correct == False)  # noqa
+            .all()
+        )
+        for a in bad:
+            q = db.query(Question).filter(Question.id == a.question_id).first()
+            if q and q.topic not in topics:
+                topics.append(q.topic)
+
+    return StudySummaryOut(
+        complete=sessions_done >= 6,
+        sessions_done=sessions_done,
+        topics_to_review=topics,
     )

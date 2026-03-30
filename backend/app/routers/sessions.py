@@ -59,7 +59,8 @@ def _pick_question(db: Session, difficulty_level: int, user_id: int, exclude_ids
     Priority:
     1. Retry questions (wrong last session) at this difficulty
     2. Unseen questions at this difficulty
-    3. Fallback: any unseen question at any difficulty
+    3. Escalate: try each higher level in turn (level 5 is the ceiling)
+    4. Last resort: any unseen question regardless of difficulty
     """
     retry_ids      = set(_get_retry_ids(db, user_id))
     fully_excluded = _get_excluded_ids(db, user_id) | exclude_ids
@@ -79,7 +80,15 @@ def _pick_question(db: Session, difficulty_level: int, user_id: int, exclude_ids
          .order_by(func.random()).first())
     if q: return q
 
-    # 3. Any unseen
+    # 3. Escalate to next higher level (never drop down)
+    for next_level in range(difficulty_level + 1, 6):
+        q = (db.query(Question)
+             .filter(Question.difficulty == next_level,
+                     Question.id.notin_(fully_excluded))
+             .order_by(func.random()).first())
+        if q: return q
+
+    # 4. Absolute last resort: any unseen question
     return (db.query(Question)
             .filter(Question.id.notin_(fully_excluded))
             .order_by(func.random()).first())
@@ -169,6 +178,13 @@ def start_session(payload: StartSessionIn, db: Session = Depends(get_db)):
         .order_by(QuizSession.id.desc())
         .first()
     )
+
+    prior = db.query(QuizSession).filter(
+        QuizSession.user_id == payload.user_id, QuizSession.completed == True  # noqa
+    ).count()
+    if prior >= 6:
+        raise HTTPException(status_code=403, detail="study_complete")
+
     starting_difficulty = max(1, min(5, last.difficulty_level_used)) if last else 1
 
     # ── Cross-session adaptation ──
@@ -187,7 +203,6 @@ def start_session(payload: StartSessionIn, db: Session = Depends(get_db)):
     profile.settings_json = json.dumps(settings)
     db.add(profile)
 
-    prior   = db.query(QuizSession).filter(QuizSession.user_id == payload.user_id, QuizSession.completed == True).count()  # noqa
     session = QuizSession(
         user_id=payload.user_id,
         session_number=prior + 1,

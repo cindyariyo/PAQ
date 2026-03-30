@@ -571,8 +571,39 @@
       const startMsg = sessionSettings.session_start_msg || "🎮 Session started! Earn XP and build a streak.";
       showToast(startMsg, 5000);
     } catch (e) {
-      err.textContent = e?.message || "Could not start session. Is the backend running?";
+      if (e?.message === "study_complete") {
+        showStudyComplete();
+      } else {
+        err.textContent = e?.message || "Could not start session. Is the backend running?";
+      }
     }
+  }
+
+  async function showStudyComplete() {
+    // Hide quiz UI, show completion card
+    document.querySelector(".container")?.querySelectorAll(":scope > *").forEach(el => el.style.display = "none");
+    let topics = [];
+    try {
+      const summary = await api(`/users/${state.user_id}/study_summary`);
+      topics = summary.topics_to_review || [];
+    } catch (_) {}
+    const card = document.createElement("div");
+    card.className = "card";
+    card.style.cssText = "margin-top:24px; text-align:center;";
+    card.innerHTML = `
+      <h2 style="margin:0 0 8px; font-size:22px;">🎓 You're All Done!</h2>
+      <p class="small" style="margin:0 0 14px;">You've completed all 6 study sessions. Thank you for participating!</p>
+      ${topics.length ? `
+        <p class="small" style="margin:0 0 8px; color:rgba(255,255,255,0.6);">Topics worth revisiting:</p>
+        <div style="display:flex; flex-wrap:wrap; gap:7px; justify-content:center; margin-bottom:16px;">
+          ${topics.map(t => `<span style="padding:4px 11px; border-radius:20px; font-size:12px; font-weight:600;
+            background:rgba(255,160,60,0.14); border:1px solid rgba(255,160,60,0.35);
+            color:rgba(255,200,100,0.95);">${t}</span>`).join("")}
+        </div>` : ""}
+      <button onclick="window.location.href='profile.html'" style="width:100%; margin-bottom:10px;">View My Profile →</button>
+      <a href="#" class="small" onclick="localStorage.clear(); location.replace('index.html?r='+Date.now()); return false;">← Back to Login</a>
+    `;
+    document.querySelector(".container").appendChild(card);
   }
 
   hintBtn.onclick = async () => {

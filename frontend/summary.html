@@ -287,6 +287,36 @@
       }
     } catch (e) { /* keep cached render */ }
 
+    function showStudyCompleteCard(topics) {
+      // Swap out questionnaire section for a completion card
+      document.querySelector(".card:last-of-type")?.remove();
+      document.getElementById("navHint")?.remove();
+      const navRow = document.querySelector("[style*='justify-content:center']");
+      if (navRow) navRow.remove();
+
+      const card = document.createElement("div");
+      card.className = "card";
+      card.style.cssText = "margin-top:16px; text-align:center;";
+      card.innerHTML = `
+        <h2 style="margin:0 0 8px; font-size:22px;">🎓 You've completed the study!</h2>
+        <p class="small" style="margin:0 0 14px; color:rgba(255,255,255,0.75);">
+          That's all 6 sessions done. Thank you so much for taking part — your responses will help improve the quiz for future students.
+        </p>
+        ${topics && topics.length ? `
+          <div style="margin-bottom:16px;">
+            <p class="small" style="margin:0 0 8px; color:rgba(255,255,255,0.55);">Topics worth revisiting before your exams:</p>
+            <div style="display:flex; flex-wrap:wrap; gap:7px; justify-content:center;">
+              ${topics.map(t => `<span style="padding:5px 12px; border-radius:20px; font-size:12px; font-weight:600;
+                background:rgba(255,160,60,0.14); border:1px solid rgba(255,160,60,0.35);
+                color:rgba(255,200,100,0.95);">${t}</span>`).join("")}
+            </div>
+          </div>` : ""}
+        <button onclick="window.location.href='profile.html'" style="width:100%; margin-bottom:10px;">View My Profile →</button>
+        <a href="#" class="small" onclick="localStorage.clear(); location.replace('index.html?r='+Date.now()); return false;" style="opacity:0.65;">← Back to Login</a>
+      `;
+      document.querySelector(".container").appendChild(card);
+    }
+
     // --- build Likert rows ---
     function buildLikert(containerId, name) {
       const row = document.getElementById(containerId);
@@ -369,14 +399,25 @@
 
       try {
         await api(`/sessions/${state.session_id}/questionnaire?user_id=${state.user_id}`, "POST", payload);
-        qStatus.textContent = "✅ Saved! See you next session.";
         document.getElementById("submitQ").disabled = true;
-        unlockNav();
+        // Check if study is now complete
+        const summary = await api(`/users/${state.user_id}/study_summary`).catch(() => null);
+        if (summary && summary.complete) {
+          showStudyCompleteCard(summary.topics_to_review);
+        } else {
+          qStatus.textContent = "✅ Saved! See you next session.";
+          unlockNav();
+        }
       } catch (e) {
         if (e.message && e.message.includes("already")) {
-          qStatus.textContent = "Already submitted for this session.";
           document.getElementById("submitQ").disabled = true;
-          unlockNav();
+          const summary = await api(`/users/${state.user_id}/study_summary`).catch(() => null);
+          if (summary && summary.complete) {
+            showStudyCompleteCard(summary.topics_to_review);
+          } else {
+            qStatus.textContent = "Already submitted for this session.";
+            unlockNav();
+          }
         } else {
           qStatus.textContent = `Error: ${e.message}`;
         }

@@ -34,7 +34,12 @@ def score_hexad(answers: Dict[str, int]) -> Tuple[str, Dict[str, int]]:
         elif k.startswith("disruptor"):
             scores["Disruptor"] += int(val)
 
-    hexad_type = max(scores, key=scores.get) if any(scores.values()) else "Unknown"
+    if not any(scores.values()):
+        return "Unknown", scores
+    top_score = max(scores.values())
+    # All types tied at top score — shouldn't happen with genuine answers, but handle cleanly
+    winners = [t for t, s in scores.items() if s == top_score]
+    hexad_type = winners[0]
     return hexad_type, scores
 
 

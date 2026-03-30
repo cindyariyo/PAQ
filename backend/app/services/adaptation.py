@@ -54,6 +54,10 @@ def update_difficulty(
     else:
         session.strong_correct_streak = 0
 
+    # Achiever: needs 1 strong correct BUT only on first attempt (no retries)
+    if hexad == "Achiever" and retries > 0:
+        session.strong_correct_streak = 0
+        return current, ""
     required = 1 if hexad == "Achiever" else 2
 
     if session.strong_correct_streak >= required:

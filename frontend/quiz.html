@@ -499,7 +499,7 @@
 
     const tipsDefault = {
       "Player":        ["Go for quick wins; fast + correct = level up.", "Try one attempt before hints for max XP.", "Keep streaks alive to farm XP."],
-      "Achiever":      ["No-hint + under 40s answers level you up faster.", "Use hints only as a last resort.", "Focus on accuracy over speed."],
+      "Achiever":      ["No hint + under 40s answers level you up faster.", "Use hints only as a last resort.", "Focus on accuracy over speed."],
       "Socialiser":    ["Hints are normal; many learners use them.", "Steady progress matters more than speed.", "Review explanations to improve over time."],
       "Free Spirit":   ["Optional challenges appear after correct answers; take them if you want a harder question.", "Explore different approaches before hints.", "Speed matters less than experimenting."],
       "Philanthropist":["Use hints to understand the concept, not just the answer.", "Read explanations carefully.", "Consistency wins."],
@@ -606,6 +606,19 @@
         feedbackBox.classList.add("correct");
         feedbackMsg.textContent  = out.feedback_message;
         feedbackExpl.textContent = out.explanation;
+
+        // Per-type correct-answer celebration toast
+        const isFirstTry = (retryCount === 0);
+        const correctToasts = {
+          "Achiever":       isFirstTry ? "🏆 First-try! Accuracy up." : "✅ Correct! Keep it up.",
+          "Player":         `🎁 +${out.xp - (loadState()._hud?.xp ?? 0)} XP earned! Streak: ${out.streak} 🔥`,
+          "Socialiser":     `👥 Nice one! Streak: ${out.streak}; you're keeping up with the best.`,
+          "Free Spirit":    "🧭 Correct! Nice approach.",
+          "Philanthropist": "💡 Well done! Your efforts are boosting the class progress.",
+          "Disruptor":      "🛠 Broken down and solved; good work.",
+        };
+        const msg = correctToasts[hexadType];
+        if (msg) showToast(msg, 2500);
         feedbackNudge.textContent= "";
         if (out.difficulty_message) diffMsg.textContent = out.difficulty_message;
         // Advance saved state to next question so restore never re-answers this one
@@ -707,8 +720,10 @@
 
   function renderMiniLb(lb) {
     const myName = (state.display_name || "").toLowerCase();
-    const top5   = lb.overall.slice(0, 5);
-    const rows   = top5.map(e => {
+    const all    = lb.overall;
+    const top3   = all.slice(0, 3);
+
+    function rowHtml(e) {
       const isMe = myName && e.display_name.toLowerCase() === myName;
       return `<div class="mini-lb-row${isMe ? " mini-me" : ""}">
         <span class="mini-rank">${medalFor(e.rank)}</span>
@@ -716,14 +731,28 @@
           ${e.is_active ? '<span class="mini-active"></span>' : ""}</span>
         <span class="mini-xp">⚡ ${e.total_xp}</span>
       </div>`;
-    }).join("");
+    }
+
+    const rows = top3.map(rowHtml).join("");
+
+    // If current user is outside top 3, find and append their entry
+    const meEntry = myName ? all.find(e => e.display_name.toLowerCase() === myName) : null;
+    const inTop3  = meEntry && meEntry.rank <= 3;
+    const extraRow = (meEntry && !inTop3)
+      ? `<div class="mini-lb-row" style="opacity:0.5; font-size:11px; text-align:center; padding:2px 0;">· · ·</div>${rowHtml(meEntry)}`
+      : "";
+
     document.getElementById("lbArea").innerHTML = `
       <div class="mini-lb">
         <div class="mini-lb-header">
           <span class="mini-lb-title">🏆 Leaderboard</span>
           <span class="mini-lb-live"><span class="mini-live-dot"></span>Live</span>
         </div>
-        ${rows}
+        ${rows}${extraRow}
+        <a href="leaderboard.html" target="_blank" style="margin-top:8px; border-radius:8px; text-decoration:none; display:flex; justify-content:space-between; align-items:center; padding:9px 12px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff;">
+          <span style="font-size:13px; font-weight:600;">View Full Leaderboard</span>
+          <span style="font-size:13px;">→</span>
+        </a>
       </div>`;
   }
 

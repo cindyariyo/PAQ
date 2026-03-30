@@ -18,8 +18,10 @@ from ..services.cross_session_adaptation import adapt_cross_session
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 def _session_total(difficulty_level: int) -> int:
-    """10 questions for levels 1-3, 7 for levels 4-5."""
-    return 10 if difficulty_level <= 3 else 7
+    """10 for levels 1-3, 7 for level 4, 5 for level 5."""
+    if difficulty_level >= 5: return 5
+    if difficulty_level == 4: return 7
+    return 10
 
 # ─────────────────────────────────────────────
 # Helpers
@@ -293,6 +295,7 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
         used_hint=used_hints,
         hexad=profile.hexad_type,
         session_floor=floor,
+        difficulty_level=session.difficulty_level_used,
     )
     session.difficulty_level_used = new_level
     db.commit()
@@ -301,6 +304,16 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
     seen_ids = {a.question_id for a in db.query(Attempt).filter(Attempt.session_id == session.id).all()}
     next_q   = _pick_question(db, new_level, payload.user_id, seen_ids) \
                if session.questions_answered < session_total else None
+
+    # When session ends, collect any skipped questions for the bonus round
+    skipped_qs = []
+    if next_q is None:
+        skipped_attempts = db.query(Attempt).filter(
+            Attempt.session_id == session.id, Attempt.skipped == True  # noqa
+        ).all()
+        skipped_qs = [_question_to_out(db.query(Question).filter(Question.id == a.question_id).first())
+                      for a in skipped_attempts
+                      if db.query(Question).filter(Question.id == a.question_id).first()]
 
     return AnswerOut(
         correct=correct,
@@ -312,6 +325,7 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
         questions_answered=session.questions_answered,
         correct_count=session.correct_count,
         session_total_questions=session_total,
+        skipped_questions=skipped_qs,
     )
 
 
@@ -346,6 +360,15 @@ def skip_question(session_id: int, user_id: int, question_id: int, db: Session =
     next_q   = _pick_question(db, session.difficulty_level_used, user_id, seen_ids) \
                if session.questions_answered < session_total else None
 
+    skipped_qs = []
+    if next_q is None:
+        skipped_attempts = db.query(Attempt).filter(
+            Attempt.session_id == session.id, Attempt.skipped == True  # noqa
+        ).all()
+        skipped_qs = [_question_to_out(db.query(Question).filter(Question.id == a.question_id).first())
+                      for a in skipped_attempts
+                      if db.query(Question).filter(Question.id == a.question_id).first()]
+
     return {
         "skipped": True,
         "next_question": _question_to_out(next_q) if next_q else None,
@@ -354,6 +377,7 @@ def skip_question(session_id: int, user_id: int, question_id: int, db: Session =
         "updated_difficulty_level": session.difficulty_level_used,
         "xp": session.xp,
         "streak": session.streak,
+        "skipped_questions": [q.model_dump() for q in skipped_qs],
     }
 
 

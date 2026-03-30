@@ -112,6 +112,21 @@
     #hintBtn:disabled { opacity: 0.35; cursor: default; transform: none; }
     #finishBtn { font-size: 13px; opacity: 0.6; }
 
+    #trySkippedBtn {
+      font-size: 13px; font-weight: 700;
+      background: rgba(255,180,0,0.15);
+      border: 1px solid rgba(255,180,0,0.5);
+      color: rgba(255,210,60,1);
+      border-radius: 10px; padding: 9px 16px;
+      cursor: pointer; display: none;
+      animation: skippedGlow 1.8s ease-in-out infinite;
+    }
+    #trySkippedBtn.visible { display: inline-block; }
+    @keyframes skippedGlow {
+      0%,100% { box-shadow: 0 0 6px rgba(255,180,0,0.3); }
+      50%      { box-shadow: 0 0 18px rgba(255,180,0,0.7); }
+    }
+
     .sp { margin-top: 10px; }
 
     /* ── Achiever: gold level chip + progress bar ── */
@@ -278,6 +293,7 @@
     <div class="row sp" style="gap:10px; flex-wrap:wrap;">
       <button id="hintBtn">💡 Hint</button>
       <button class="btn-primary" id="submitBtn">Submit Answer</button>
+      <button id="trySkippedBtn">⚡ Try Skipped Questions</button>
       <button id="finishBtn">🏁 Finish</button>
     </div>
 
@@ -333,6 +349,7 @@
   const challengeWrap  = document.getElementById("challengeWrap");
   const challengeBtn   = document.getElementById("challengeBtn");
   const finishBtn      = document.getElementById("finishBtn");
+  const trySkippedBtn  = document.getElementById("trySkippedBtn");
   const err            = document.getElementById("err");
   const toastEl        = document.getElementById("toastEl");
 
@@ -347,6 +364,8 @@
   let prevLevel       = 1;
   let hexadType       = "Unknown";
   let sessionSettings = state.settings || {};
+  let bonusQueue      = [];  // skipped questions waiting for bonus round
+  let inBonusRound    = false;
 
   let toastTimer = null;
   function showToast(msg, duration = 3000) {
@@ -499,28 +518,28 @@
 
     const tipsDefault = {
       "Player":        ["Go for quick wins; fast + correct = level up.", "Try one attempt before hints for max XP.", "Keep streaks alive to farm XP."],
-      "Achiever":      ["No hint + under 40s answers level you up faster.", "Use hints only as a last resort.", "Focus on accuracy over speed."],
+      "Achiever":      ["No hint + quick answers level you up faster.", "Use hints when you feel stuck.", "Focus on accuracy over speed."],
       "Socialiser":    ["Hints are normal; many learners use them.", "Steady progress matters more than speed.", "Review explanations to improve over time."],
-      "Free Spirit":   ["Optional challenges appear after correct answers; take them if you want a harder question.", "Explore different approaches before hints.", "Speed matters less than experimenting."],
+      "Free Spirit":   ["Challenges are optional; take them if you want a harder question.", "Explore different approaches before hints.", "Experimenting > Speed."],
       "Philanthropist":["Use hints to understand the concept, not just the answer.", "Read explanations carefully.", "Consistency wins."],
       "Disruptor":     ["Try an alternative method if your first fails.", "Trace with small examples mentally.", "Use Hint 1 then attempt immediately."],
       "Unknown":       ["Answer quickly + correctly to level up.", "Hints help but reduce your strong-correct streak.", "Streak boosts momentum."],
     };
     // "challenge" variant: push harder; "recovery" variant: softer + encouragement
     const tipsChallenge = {
-      "Player":        ["Push for no-hint, fast answers to maximise XP.", "Aim for a 5+ streak this session."],
-      "Achiever":      ["Try to beat last session's accuracy.", "Only use hints if totally stuck — mastery counts."],
+      "Player":        ["Try without hints, fast answers to maximise XP.", "Aim for a 5+ streak this session."],
+      "Achiever":      ["Try to beat your previous session accuracy.", "Only use hints if totally stuck — the goal is mastery."],
       "Socialiser":    ["See if you can finish ahead of others this round.", "Consistent correct answers build your rank."],
-      "Free Spirit":   ["Take every optional challenge offered to you.", "Explore a different strategy on each question."],
+      "Free Spirit":   ["Try optional challenges offered to you.", "Explore a different strategy on each question."],
       "Philanthropist":["Tackle the tricky ones — your understanding helps others.", "Aim to explain the answer in your head before selecting."],
-      "Disruptor":     ["Find the edge case first, then work backwards.", "Try to solve each question unconventionally."],
-      "Unknown":       ["Push for no-hint, quick answers.", "Aim for a longer streak than last time."],
+      "Disruptor":     ["Find the edge case first, then work backwards.", "Try to solve each question with your own method."],
+      "Unknown":       ["Try without hints, quick answers.", "Aim for a longer streak than last time."],
     };
     const tipsRecovery = {
       "Player":        ["Every question earns XP — keep going.", "A wrong answer isn't a loss; it's data."],
       "Achiever":      ["Use hints freely — understanding beats speed right now.", "Small improvements each session add up."],
       "Socialiser":    ["Lots of learners find these tricky — you're not alone.", "Take your time; accuracy matters more than pace."],
-      "Free Spirit":   ["Skip optional challenges if they feel too much right now.", "Explore at your own pace — no pressure."],
+      "Free Spirit":   ["Skip optional challenges if they feel too much right now.", "Progress at your own pace — no pressure."],
       "Philanthropist":["Read hints and explanations carefully; depth over speed.", "Each session builds on the last — be patient."],
       "Disruptor":     ["Use hints as tools, not shortcuts.", "Break each problem into smaller pieces before guessing."],
       "Unknown":       ["Use hints when stuck — they're there to help.", "Focus on understanding, not speed."],
@@ -633,8 +652,21 @@
           } else {
             nextWrap.classList.add("visible");
           }
+        } else if (inBonusRound && bonusQueue.length > 0) {
+          // Advance to next bonus question via Next button
+          pendingQuestion = bonusQueue.shift();
+          diffMsg.textContent = bonusQueue.length > 0
+            ? `⚡ ${bonusQueue.length + 1} bonus question${bonusQueue.length + 1 > 1 ? "s" : ""} left.`
+            : "⚡ Last bonus question — then Finish!";
+          nextWrap.classList.add("visible");
         } else {
-          diffMsg.textContent += (diffMsg.textContent ? "  ·  " : "") + "🏁 Session complete — click Finish.";
+          if (inBonusRound) diffMsg.textContent = "⚡ Bonus round complete! Click Finish.";
+          else diffMsg.textContent += (diffMsg.textContent ? "  ·  " : "") + "🏁 Session complete — click Finish.";
+          if ((out.skipped_questions || []).length > 0 && !inBonusRound) {
+            bonusQueue = out.skipped_questions;
+            trySkippedBtn.classList.add("visible");
+            trySkippedBtn.textContent = `⚡ Try Skipped Questions (${bonusQueue.length})`;
+          }
         }
       } else {
         retryCount += 1;
@@ -681,6 +713,11 @@
         clearInterval(timerHandle);
         diffMsg.textContent = "🏁 Session complete — click Finish.";
         submitBtn.disabled  = true;
+        if ((out.skipped_questions || []).length > 0) {
+          bonusQueue = out.skipped_questions;
+          trySkippedBtn.classList.add("visible");
+          trySkippedBtn.textContent = `⚡ Try Skipped Questions (${bonusQueue.length})`;
+        }
       }
     } catch (e) {
       err.textContent = e?.message || "Skip failed.";
@@ -694,6 +731,16 @@
       showToast("🧭 Challenge accepted! Good luck.");
       renderQuestion(pendingQuestion);
     }
+  };
+
+  trySkippedBtn.onclick = () => {
+    if (bonusQueue.length === 0) return;
+    inBonusRound = true;
+    trySkippedBtn.classList.remove("visible");
+    diffMsg.textContent = `⚡ Bonus round — ${bonusQueue.length} skipped question${bonusQueue.length > 1 ? "s" : ""} to retry.`;
+    submitBtn.disabled = false;
+    hintBtn.disabled   = false;
+    renderQuestion(bonusQueue.shift());
   };
 
   finishBtn.onclick = async () => {

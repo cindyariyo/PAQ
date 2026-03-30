@@ -86,6 +86,7 @@ class AnswerOut(BaseModel):
     questions_answered: int
     correct_count: int
     session_total_questions: int = 7
+    skipped_questions: List[QuestionOut] = []
 
 
 class FinishOut(BaseModel):

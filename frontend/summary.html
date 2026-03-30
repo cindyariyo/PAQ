@@ -138,55 +138,55 @@
         Think about your experience overall across this session.
       </p>
 
-      <div class="likert-block">
+      <div class="likert-block" id="block_enjoyment">
         <span class="q-label">How much did you enjoy working through the questions?</span>
         <div class="likert-row" id="enjoymentRow"></div>
         <div class="scale-ends"><span>Didn't enjoy it</span><span>Really enjoyed it</span></div>
       </div>
 
-      <div class="likert-block">
+      <div class="likert-block" id="block_frustration">
         <span class="q-label">Did you feel frustrated at any point?</span>
         <div class="likert-row" id="frustrationRow"></div>
         <div class="scale-ends"><span>Not at all</span><span>Very frustrated</span></div>
       </div>
 
-      <div class="likert-block">
+      <div class="likert-block" id="block_effort">
         <span class="q-label">How much effort did you put in?</span>
         <div class="likert-row" id="effortRow"></div>
         <div class="scale-ends"><span>Barely tried</span><span>Gave it my best</span></div>
       </div>
 
-      <div class="likert-block">
+      <div class="likert-block" id="block_focused">
         <span class="q-label">How focused were you during this session?</span>
         <div class="likert-row" id="focusedRow"></div>
         <div class="scale-ends"><span>Not focused</span><span>Fully focused</span></div>
       </div>
 
-      <div class="likert-block">
+      <div class="likert-block" id="block_challenge">
         <span class="q-label">How challenging did you find the questions?</span>
         <div class="likert-row" id="challengeRow"></div>
         <div class="scale-ends"><span>Too easy</span><span>Too hard</span></div>
       </div>
 
-      <div class="likert-block">
+      <div class="likert-block" id="block_recovered">
         <span class="q-label">Were you able to recover from mistakes and keep going?</span>
         <div class="likert-row" id="recoveredRow"></div>
         <div class="scale-ends"><span>Not at all</span><span>Very easily</span></div>
       </div>
 
-      <div class="likert-block">
+      <div class="likert-block" id="block_hints_helped">
         <span class="q-label">Did the feedback and hints help you improve your answers?</span>
         <div class="likert-row" id="hintsHelpedRow"></div>
         <div class="scale-ends"><span>Not at all</span><span>A great deal</span></div>
       </div>
 
-      <div class="likert-block">
+      <div class="likert-block" id="block_satisfied">
         <span class="q-label">How satisfied did you feel with your performance in this session?</span>
         <div class="likert-row" id="satisfiedRow"></div>
         <div class="scale-ends"><span>Not satisfied</span><span>Very satisfied</span></div>
       </div>
 
-      <div class="likert-block">
+      <div class="likert-block" id="block_motivated">
         <span class="q-label">Do you feel motivated to keep revising after this session?</span>
         <div class="likert-row" id="motivatedRow"></div>
         <div class="scale-ends"><span>Not motivated</span><span>Very motivated</span></div>
@@ -218,9 +218,10 @@
     </div>
 
     <div style="margin-top:16px; text-align:center; display:flex; gap:20px; justify-content:center;">
-      <a href="profile.html" class="small">View Profile →</a>
-      <a href="#" class="small" onclick="localStorage.clear(); location.replace('index.html?r=' + Date.now())">← Back to Login</a>
+      <a id="navProfile" href="#" class="small" style="opacity:0.3; cursor:not-allowed; pointer-events:none;">View Profile →</a>
+      <a id="navLogin"   href="#" class="small" style="opacity:0.3; cursor:not-allowed; pointer-events:none;">← Back to Login</a>
     </div>
+    <p id="navHint" class="small" style="text-align:center; color:rgba(255,180,60,0.8); margin-top:6px;">Complete the check-in above to continue.</p>
   </div>
 
   <script type="module">
@@ -291,7 +292,7 @@
       const row = document.getElementById(containerId);
       row.innerHTML = [1,2,3,4,5].map(v => `
         <label>
-          <input type="radio" name="${name}" value="${v}" ${v===3?"checked":""}>
+          <input type="radio" name="${name}" value="${v}">
           <span>${v}</span>
         </label>
       `).join("");
@@ -307,26 +308,61 @@
     buildLikert("satisfiedRow",   "satisfied");
     buildLikert("motivatedRow",   "motivated");
 
-    function getRadioVal(name, fallback = 3) {
+    function getRadioVal(name) {
       const el = document.querySelector(`input[name="${name}"]:checked`);
-      return el ? parseInt(el.value, 10) : fallback;
+      return el ? parseInt(el.value, 10) : null;
+    }
+
+    const REQUIRED_FIELDS = [
+      "enjoyment", "frustration", "effort", "focused", "challenge",
+      "recovered", "hints_helped", "satisfied", "motivated"
+    ];
+
+    function unlockNav() {
+      const navProfile = document.getElementById("navProfile");
+      const navLogin   = document.getElementById("navLogin");
+      navProfile.href  = "profile.html";
+      navProfile.style.cssText += "; opacity:1; pointer-events:auto; cursor:pointer;";
+      navLogin.onclick = () => { localStorage.clear(); location.replace("index.html?r=" + Date.now()); };
+      navLogin.style.cssText += "; opacity:1; pointer-events:auto; cursor:pointer;";
+      document.getElementById("navHint").style.display = "none";
     }
 
     // --- submit questionnaire ---
     document.getElementById("submitQ").onclick = async () => {
       const qStatus = document.getElementById("qStatus");
+
+      // Clear previous highlights
+      REQUIRED_FIELDS.forEach(f => {
+        const block = document.getElementById(`block_${f}`);
+        if (block) block.style.border = "";
+      });
+
+      // Validate all required Likert questions
+      const missing = REQUIRED_FIELDS.filter(f => getRadioVal(f) === null);
+      if (missing.length > 0) {
+        missing.forEach(f => {
+          const block = document.getElementById(`block_${f}`);
+          if (block) block.style.border = "1px solid rgba(255,100,100,0.6)";
+        });
+        const first = document.getElementById(`block_${missing[0]}`);
+        if (first) first.scrollIntoView({ behavior: "smooth", block: "center" });
+        qStatus.textContent = `Please answer all ${missing.length} remaining question${missing.length > 1 ? "s" : ""}.`;
+        return;
+      }
+
       qStatus.textContent = "Saving...";
 
       const payload = {
-        enjoyment:   getRadioVal("enjoyment"),
-        frustration: getRadioVal("frustration"),
-        effort:      getRadioVal("effort"),
-        focused:     getRadioVal("focused"),
-        challenge:   getRadioVal("challenge"),
-        recovered:          getRadioVal("recovered",    3),
-        hints_helped:       getRadioVal("hints_helped", 3),
-        satisfied:          getRadioVal("satisfied",    3),
-        motivated:          getRadioVal("motivated",    3),
+        enjoyment:          getRadioVal("enjoyment"),
+        frustration:        getRadioVal("frustration"),
+        effort:             getRadioVal("effort"),
+        focused:            getRadioVal("focused"),
+        challenge:          getRadioVal("challenge"),
+        recovered:          getRadioVal("recovered"),
+        hints_helped:       getRadioVal("hints_helped"),
+        satisfied:          getRadioVal("satisfied"),
+        motivated:          getRadioVal("motivated"),
         favourite_features: [...document.querySelectorAll("#featuresGrid input:checked")].map(el => el.value).join(", "),
         free_text:          document.getElementById("freeText").value.trim(),
       };
@@ -335,10 +371,12 @@
         await api(`/sessions/${state.session_id}/questionnaire?user_id=${state.user_id}`, "POST", payload);
         qStatus.textContent = "✅ Saved! See you next session.";
         document.getElementById("submitQ").disabled = true;
+        unlockNav();
       } catch (e) {
-        // If already submitted (400), handle gracefully
         if (e.message && e.message.includes("already")) {
           qStatus.textContent = "Already submitted for this session.";
+          document.getElementById("submitQ").disabled = true;
+          unlockNav();
         } else {
           qStatus.textContent = `Error: ${e.message}`;
         }

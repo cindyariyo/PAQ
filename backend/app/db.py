@@ -1,7 +1,9 @@
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-DATABASE_URL = "sqlite:///./fyp.db"
+# Local dev: sqlite:///./fyp.db  |  Railway: set DATABASE_URL=sqlite:////data/fyp.db
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./fyp.db")
 
 engine = create_engine(
     DATABASE_URL,

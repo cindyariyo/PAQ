@@ -1,4 +1,4 @@
-﻿const API_BASE = "/api";
+﻿const API_BASE = "https://paq-production.up.railway.app";
 
 export async function api(path, method = "GET", body = null) {
   const opts = { method, headers: { "Content-Type": "application/json" } };

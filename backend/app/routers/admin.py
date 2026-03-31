@@ -186,3 +186,29 @@ def study_status(key: str = Query(...), fmt: str = Query("html"), db: Session = 
 </html>"""
 
     return HTMLResponse(html)
+
+
+@router.post("/reset-db")
+def reset_db(key: str = Query(...)):
+    """
+    Wipe all study data and reseed questions. Use before the real study begins.
+    Only works if ALLOW_RESET=true is set in environment variables.
+    """
+    _check_key(key)
+    allow = os.environ.get("ALLOW_RESET", "false").lower() == "true"
+    if not allow:
+        raise HTTPException(status_code=403, detail="Reset not enabled. Set ALLOW_RESET=true in Railway variables.")
+
+    from ..db import engine, Base
+    from .. import seed as seed_module
+    from ..db import SessionLocal
+
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        seed_module.seed_questions(db)
+    finally:
+        db.close()
+
+    return {"ok": True, "message": "Database wiped and reseeded."}

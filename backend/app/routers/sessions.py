@@ -13,12 +13,15 @@ from ..schemas import (
     AnswerIn, AnswerOut, HintOut, FinishOut, QuestionnaireIn
 )
 from ..services.adaptation import hint_level_from_rules, update_difficulty
+from ..services.cross_session_adaptation import adapt_cross_session
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 def _session_total(difficulty_level: int) -> int:
-    """10 questions for levels 1-3, 7 for levels 4-5."""
-    return 10 if difficulty_level <= 3 else 7
+    """10 for levels 1-3, 7 for level 4, 5 for level 5."""
+    if difficulty_level >= 5: return 5
+    if difficulty_level == 4: return 7
+    return 10
 
 # ─────────────────────────────────────────────
 # Helpers
@@ -56,7 +59,8 @@ def _pick_question(db: Session, difficulty_level: int, user_id: int, exclude_ids
     Priority:
     1. Retry questions (wrong last session) at this difficulty
     2. Unseen questions at this difficulty
-    3. Fallback: any unseen question at any difficulty
+    3. Escalate: try each higher level in turn (level 5 is the ceiling)
+    4. Last resort: any unseen question regardless of difficulty
     """
     retry_ids      = set(_get_retry_ids(db, user_id))
     fully_excluded = _get_excluded_ids(db, user_id) | exclude_ids
@@ -76,7 +80,15 @@ def _pick_question(db: Session, difficulty_level: int, user_id: int, exclude_ids
          .order_by(func.random()).first())
     if q: return q
 
-    # 3. Any unseen
+    # 3. Escalate to next higher level (never drop down)
+    for next_level in range(difficulty_level + 1, 6):
+        q = (db.query(Question)
+             .filter(Question.difficulty == next_level,
+                     Question.id.notin_(fully_excluded))
+             .order_by(func.random()).first())
+        if q: return q
+
+    # 4. Absolute last resort: any unseen question
     return (db.query(Question)
             .filter(Question.id.notin_(fully_excluded))
             .order_by(func.random()).first())
@@ -157,7 +169,7 @@ def _session_floor(starting_difficulty: int) -> int:
 @router.post("/start", response_model=StartSessionOut)
 def start_session(payload: StartSessionIn, db: Session = Depends(get_db)):
     profile  = _get_profile(db, payload.user_id)
-    settings = json.loads(profile.settings_json or "{}")
+    base_settings = json.loads(profile.settings_json or "{}")
 
     # ── Carry forward difficulty from last completed session ──
     last = (
@@ -166,9 +178,31 @@ def start_session(payload: StartSessionIn, db: Session = Depends(get_db)):
         .order_by(QuizSession.id.desc())
         .first()
     )
+
+    prior = db.query(QuizSession).filter(
+        QuizSession.user_id == payload.user_id, QuizSession.completed == True  # noqa
+    ).count()
+    if prior >= 6:
+        raise HTTPException(status_code=403, detail="study_complete")
+
     starting_difficulty = max(1, min(5, last.difficulty_level_used)) if last else 1
 
-    prior   = db.query(QuizSession).filter(QuizSession.user_id == payload.user_id, QuizSession.completed == True).count()  # noqa
+    # ── Cross-session adaptation ──
+    last_qr = (
+        db.query(QuestionnaireResponse)
+        .filter(QuestionnaireResponse.session_id == last.id)
+        .first()
+    ) if last else None
+    settings = adapt_cross_session(last, last_qr, base_settings, profile.hexad_type)
+
+    # Apply difficulty_offset (clamp to 1-5)
+    offset = settings.get("difficulty_offset", 0)
+    starting_difficulty = max(1, min(5, starting_difficulty + offset))
+
+    # Persist adapted settings back to profile
+    profile.settings_json = json.dumps(settings)
+    db.add(profile)
+
     session = QuizSession(
         user_id=payload.user_id,
         session_number=prior + 1,
@@ -204,6 +238,13 @@ def get_hint(session_id: int, user_id: int, question_id: int,
     profile = _get_profile(db, user_id)
     q = db.query(Question).filter(Question.id == question_id).first()
     if not q: raise HTTPException(status_code=404, detail="Question not found")
+    # Apply hint_aggressiveness from cross-session adaptation
+    settings = json.loads(profile.settings_json or "{}")
+    aggressiveness = settings.get("hint_aggressiveness", "normal")
+    if aggressiveness == "high":
+        time_spent_seconds = int(time_spent_seconds * 1.4)  # hints trigger ~40% sooner
+    elif aggressiveness == "low":
+        time_spent_seconds = int(time_spent_seconds * 0.7)  # hints trigger ~30% later
     level  = max(1, hint_level_from_rules(time_spent_seconds, retry_count, current_hint_level))
     prefix = _hexad_prefix(profile.hexad_type)
     if level == 1:
@@ -238,20 +279,38 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
     if correct: _mark_correct(db, payload.user_id, q.id)
     else:       _mark_seen(db, payload.user_id, q.id)
 
-    xp_delta = 5
+    settings     = json.loads(profile.settings_json or "{}")
+    xp_mult      = float(settings.get("xp_multiplier", 1.0))
+    effort_xp    = bool(settings.get("effort_xp", False))
+    streak_shield= bool(settings.get("streak_shield", False))
+
+    xp_delta = 1  # 1 XP for any attempt (effort)
+    if effort_xp:
+        xp_delta += 5  # cross-session bonus: reward effort regardless of correctness
     if correct:
         session.questions_answered += 1
         session.correct_count += 1
         session.streak += 1
-        xp_delta += 20
+        xp_delta += 24  # total 25 for correct (1 base + 24), or 30 with effort_xp
         if payload.retry_count == 0:
             session.first_attempt_correct += 1
     else:
-        session.streak = 0
+        if streak_shield and session.streak > 0:
+            # One-time shield: absorb the streak break
+            settings["streak_shield_active"] = False
+            settings["streak_shield"] = False   # consume the shield
+            profile.settings_json = json.dumps(settings)
+            db.add(profile)
+            # streak stays intact
+        else:
+            session.streak = 0
+    xp_delta = round(xp_delta * xp_mult)
     session.xp += xp_delta
 
     # ── Difficulty update — floor = starting_difficulty - 1 (min 1) ──
-    floor = max(1, session.starting_difficulty - 1)
+    # protect_difficulty (cross-session): frustrated/low-motivation users don't drop levels
+    protect = bool(settings.get("protect_difficulty", False))
+    floor = session.difficulty_level_used if protect else max(1, session.starting_difficulty - 1)
     new_level, diff_msg = update_difficulty(
         session,
         correct=correct,
@@ -260,6 +319,7 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
         used_hint=used_hints,
         hexad=profile.hexad_type,
         session_floor=floor,
+        difficulty_level=session.difficulty_level_used,
     )
     session.difficulty_level_used = new_level
     db.commit()
@@ -268,6 +328,16 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
     seen_ids = {a.question_id for a in db.query(Attempt).filter(Attempt.session_id == session.id).all()}
     next_q   = _pick_question(db, new_level, payload.user_id, seen_ids) \
                if session.questions_answered < session_total else None
+
+    # When session ends, collect any skipped questions for the bonus round
+    skipped_qs = []
+    if next_q is None:
+        skipped_attempts = db.query(Attempt).filter(
+            Attempt.session_id == session.id, Attempt.skipped == True  # noqa
+        ).all()
+        skipped_qs = [_question_to_out(db.query(Question).filter(Question.id == a.question_id).first())
+                      for a in skipped_attempts
+                      if db.query(Question).filter(Question.id == a.question_id).first()]
 
     return AnswerOut(
         correct=correct,
@@ -279,6 +349,7 @@ def answer(session_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
         questions_answered=session.questions_answered,
         correct_count=session.correct_count,
         session_total_questions=session_total,
+        skipped_questions=skipped_qs,
     )
 
 
@@ -313,6 +384,15 @@ def skip_question(session_id: int, user_id: int, question_id: int, db: Session =
     next_q   = _pick_question(db, session.difficulty_level_used, user_id, seen_ids) \
                if session.questions_answered < session_total else None
 
+    skipped_qs = []
+    if next_q is None:
+        skipped_attempts = db.query(Attempt).filter(
+            Attempt.session_id == session.id, Attempt.skipped == True  # noqa
+        ).all()
+        skipped_qs = [_question_to_out(db.query(Question).filter(Question.id == a.question_id).first())
+                      for a in skipped_attempts
+                      if db.query(Question).filter(Question.id == a.question_id).first()]
+
     return {
         "skipped": True,
         "next_question": _question_to_out(next_q) if next_q else None,
@@ -321,6 +401,7 @@ def skip_question(session_id: int, user_id: int, question_id: int, db: Session =
         "updated_difficulty_level": session.difficulty_level_used,
         "xp": session.xp,
         "streak": session.streak,
+        "skipped_questions": [q.model_dump() for q in skipped_qs],
     }
 
 

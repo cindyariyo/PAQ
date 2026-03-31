@@ -20,6 +20,7 @@ def update_difficulty(
     used_hint: bool,
     hexad: str,
     session_floor: int = 1,
+    difficulty_level: int = 1,
 ):
     """
     Adapts difficulty_level_used on the session object after each answer.
@@ -48,13 +49,19 @@ def update_difficulty(
         return current, ""  # already at floor, no message
 
     # ── Strong correct ──
-    strong_correct = correct and (not used_hint) and (time_spent < 40)
+    # Time limit scales with difficulty: +5s at level 4
+    strong_time_limit = 50 if difficulty_level >= 5 else (45 if difficulty_level == 4 else 40)
+    strong_correct = correct and (not used_hint) and (time_spent < strong_time_limit)
     if strong_correct:
         session.strong_correct_streak += 1
     else:
         session.strong_correct_streak = 0
 
-    required = 1 if hexad == "Achiever" else 2
+    # All types: only first-attempt answers count toward level-up streak
+    if retries > 0:
+        session.strong_correct_streak = 0
+        return current, ""
+    required = 3  # 3 consecutive strong-correct first-try answers to level up
 
     if session.strong_correct_streak >= required:
         session.strong_correct_streak = 0

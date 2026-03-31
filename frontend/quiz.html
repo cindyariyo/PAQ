@@ -112,6 +112,21 @@
     #hintBtn:disabled { opacity: 0.35; cursor: default; transform: none; }
     #finishBtn { font-size: 13px; opacity: 0.6; }
 
+    #trySkippedBtn {
+      font-size: 13px; font-weight: 700;
+      background: rgba(255,180,0,0.15);
+      border: 1px solid rgba(255,180,0,0.5);
+      color: rgba(255,210,60,1);
+      border-radius: 10px; padding: 9px 16px;
+      cursor: pointer; display: none;
+      animation: skippedGlow 1.8s ease-in-out infinite;
+    }
+    #trySkippedBtn.visible { display: inline-block; }
+    @keyframes skippedGlow {
+      0%,100% { box-shadow: 0 0 6px rgba(255,180,0,0.3); }
+      50%      { box-shadow: 0 0 18px rgba(255,180,0,0.7); }
+    }
+
     .sp { margin-top: 10px; }
 
     /* ── Achiever: gold level chip + progress bar ── */
@@ -278,6 +293,7 @@
     <div class="row sp" style="gap:10px; flex-wrap:wrap;">
       <button id="hintBtn">💡 Hint</button>
       <button class="btn-primary" id="submitBtn">Submit Answer</button>
+      <button id="trySkippedBtn">⚡ Try Skipped Questions</button>
       <button id="finishBtn">🏁 Finish</button>
     </div>
 
@@ -333,6 +349,7 @@
   const challengeWrap  = document.getElementById("challengeWrap");
   const challengeBtn   = document.getElementById("challengeBtn");
   const finishBtn      = document.getElementById("finishBtn");
+  const trySkippedBtn  = document.getElementById("trySkippedBtn");
   const err            = document.getElementById("err");
   const toastEl        = document.getElementById("toastEl");
 
@@ -346,6 +363,9 @@
   let timerHandle     = null;
   let prevLevel       = 1;
   let hexadType       = "Unknown";
+  let sessionSettings = state.settings || {};
+  let bonusQueue      = [];  // skipped questions waiting for bonus round
+  let inBonusRound    = false;
 
   let toastTimer = null;
   function showToast(msg, duration = 3000) {
@@ -364,8 +384,12 @@
       showToast(`🏆 Mastery Level Up! You're now at Level ${lvl}`);
     }
     prevLevel = lvl;
-    document.getElementById("xpVal").textContent     = data.xp ?? 0;
-    document.getElementById("streakVal").textContent = data.streak ?? 0;
+    document.getElementById("xpVal").textContent = data.xp ?? 0;
+    const streakEl = document.getElementById("streakVal");
+    const shielded = sessionSettings.streak_shield;
+    streakEl.textContent = shielded
+      ? `${data.streak ?? 0} 🛡`
+      : `${data.streak ?? 0}`;
     const done  = data.questions_answered ?? 0;
     const total = data.session_total_questions ?? 7;
     progressText.textContent = `${done} / ${total}`;
@@ -401,14 +425,19 @@
   // Level 4: hint1=80s,  hint2=110s
   // Level 5: hint1=110s, hint2=140s
   function hintThresholds(level) {
-    const thresholds = {
+    const base = {
       1: { h1: 45,  h2: 75  },
       2: { h1: 45,  h2: 75  },
       3: { h1: 55,  h2: 85  },
       4: { h1: 80,  h2: 110 },
       5: { h1: 110, h2: 140 },
     };
-    return thresholds[level] ?? { h1: 45, h2: 75 };
+    const t   = base[level] ?? { h1: 45, h2: 75 };
+    const agg = sessionSettings.hint_aggressiveness || "normal";
+    // "high" → hints appear 30% sooner; "low" → 35% later
+    if (agg === "high") return { h1: Math.round(t.h1 * 0.7), h2: Math.round(t.h2 * 0.7) };
+    if (agg === "low")  return { h1: Math.round(t.h1 * 1.35), h2: Math.round(t.h2 * 1.35) };
+    return t;
   }
 
   function startHintTimer() {
@@ -438,7 +467,7 @@
       );
       hintLevelShown = out.hint_level;
       showHintCard(out.hint_level, out.hint_text);
-      if (auto && targetLevel === 1) showToast("💡 Hint appeared — taking a while?");
+      if (auto && targetLevel === 1) showToast("💡 Hint appeared, taking a while?");
     } catch (_) { /* silent */ }
   }
 
@@ -487,35 +516,94 @@
       card.classList.add("achiever-mode");
     }
 
-    const tips = {
+    const tipsDefault = {
       "Player":        ["Go for quick wins; fast + correct = level up.", "Try one attempt before hints for max XP.", "Keep streaks alive to farm XP."],
-      "Achiever":      ["No-hint + under 40s answers level you up faster.", "Use hints only as a last resort.", "Focus on accuracy over speed."],
+      "Achiever":      ["No hint + quick answers level you up faster.", "Use hints when you feel stuck.", "Focus on accuracy over speed."],
       "Socialiser":    ["Hints are normal; many learners use them.", "Steady progress matters more than speed.", "Review explanations to improve over time."],
-      "Free Spirit":   ["Optional challenges appear after correct answers; take them if you want a harder question.", "Explore different approaches before hints.", "Speed matters less than experimenting."],
+      "Free Spirit":   ["Challenges are optional; take them if you want a harder question.", "Explore different approaches before hints.", "Experimenting > Speed."],
       "Philanthropist":["Use hints to understand the concept, not just the answer.", "Read explanations carefully.", "Consistency wins."],
       "Disruptor":     ["Try an alternative method if your first fails.", "Trace with small examples mentally.", "Use Hint 1 then attempt immediately."],
       "Unknown":       ["Answer quickly + correctly to level up.", "Hints help but reduce your strong-correct streak.", "Streak boosts momentum."],
     };
+    // "challenge" variant: push harder; "recovery" variant: softer + encouragement
+    const tipsChallenge = {
+      "Player":        ["Try without hints, fast answers to maximise XP.", "Aim for a 5+ streak this session."],
+      "Achiever":      ["Try to beat your previous session accuracy.", "Only use hints if totally stuck — the goal is mastery."],
+      "Socialiser":    ["See if you can finish ahead of others this round.", "Consistent correct answers build your rank."],
+      "Free Spirit":   ["Try optional challenges offered to you.", "Explore a different strategy on each question."],
+      "Philanthropist":["Tackle the tricky ones — your understanding helps others.", "Aim to explain the answer in your head before selecting."],
+      "Disruptor":     ["Find the edge case first, then work backwards.", "Try to solve each question with your own method."],
+      "Unknown":       ["Try without hints, quick answers.", "Aim for a longer streak than last time."],
+    };
+    const tipsRecovery = {
+      "Player":        ["Every question earns XP — keep going.", "A wrong answer isn't a loss; it's data."],
+      "Achiever":      ["Use hints freely — understanding beats speed right now.", "Small improvements each session add up."],
+      "Socialiser":    ["Lots of learners find these tricky — you're not alone.", "Take your time; accuracy matters more than pace."],
+      "Free Spirit":   ["Skip optional challenges if they feel too much right now.", "Progress at your own pace — no pressure."],
+      "Philanthropist":["Read hints and explanations carefully; depth over speed.", "Each session builds on the last — be patient."],
+      "Disruptor":     ["Use hints as tools, not shortcuts.", "Break each problem into smaller pieces before guessing."],
+      "Unknown":       ["Use hints when stuck — they're there to help.", "Focus on understanding, not speed."],
+    };
+
+    const variant = sessionSettings.tips_variant || "default";
+    const tipsMap = variant === "challenge" ? tipsChallenge
+                  : variant === "recovery"  ? tipsRecovery
+                  : tipsDefault;
+
     document.getElementById("tipsTitle").textContent = "Tips For You";
     document.getElementById("tipsList").innerHTML =
-      (tips[hexad] || tips["Unknown"]).slice(0, 2).map(t => `<li>${t}</li>`).join("");
+      (tipsMap[hexad] || tipsDefault["Unknown"]).slice(0, 2).map(t => `<li>${t}</li>`).join("");
   }
 
   async function start() {
     try {
       const out = await api("/sessions/start", "POST", { user_id: state.user_id });
-      sessionId = out.session_id;
-      prevLevel = out.difficulty_level ?? 1;
+      sessionId      = out.session_id;
+      prevLevel      = out.difficulty_level ?? 1;
+      sessionSettings= out.settings || {};
       saveState({ ...state, session_id: sessionId, session_number: out.session_number, hexad_type: out.hexad_type, settings: out.settings, summary: null,
         _q: out.question, _hud: { xp: 0, streak: 0, done: 0, total: out.session_total_questions, level: out.difficulty_level } });
       hexadBadge.textContent = `${out.hexad_type}  ·  Session #${out.session_number}`;
       applyHexadUI(out.hexad_type);
       updateHUD(out);
       renderQuestion(out.question);
-      showToast("🎮 Session started! Earn XP and build a streak.");
+      // Show personalised start message if available, else default
+      const startMsg = sessionSettings.session_start_msg || "🎮 Session started! Earn XP and build a streak.";
+      showToast(startMsg, 5000);
     } catch (e) {
-      err.textContent = e?.message || "Could not start session. Is the backend running?";
+      if (e?.message === "study_complete") {
+        showStudyComplete();
+      } else {
+        err.textContent = e?.message || "Could not start session. Is the backend running?";
+      }
     }
+  }
+
+  async function showStudyComplete() {
+    // Hide quiz UI, show completion card
+    document.querySelector(".container")?.querySelectorAll(":scope > *").forEach(el => el.style.display = "none");
+    let topics = [];
+    try {
+      const summary = await api(`/users/${state.user_id}/study_summary`);
+      topics = summary.topics_to_review || [];
+    } catch (_) {}
+    const card = document.createElement("div");
+    card.className = "card";
+    card.style.cssText = "margin-top:24px; text-align:center;";
+    card.innerHTML = `
+      <h2 style="margin:0 0 8px; font-size:22px;">🎓 You're All Done!</h2>
+      <p class="small" style="margin:0 0 14px;">You've completed all 6 study sessions. Thank you for participating!</p>
+      ${topics.length ? `
+        <p class="small" style="margin:0 0 8px; color:rgba(255,255,255,0.6);">Topics worth revisiting:</p>
+        <div style="display:flex; flex-wrap:wrap; gap:7px; justify-content:center; margin-bottom:16px;">
+          ${topics.map(t => `<span style="padding:4px 11px; border-radius:20px; font-size:12px; font-weight:600;
+            background:rgba(255,160,60,0.14); border:1px solid rgba(255,160,60,0.35);
+            color:rgba(255,200,100,0.95);">${t}</span>`).join("")}
+        </div>` : ""}
+      <button onclick="window.location.href='profile.html'" style="width:100%; margin-bottom:10px;">View My Profile →</button>
+      <a href="#" class="small" onclick="localStorage.clear(); location.replace('index.html?r='+Date.now()); return false;">← Back to Login</a>
+    `;
+    document.querySelector(".container").appendChild(card);
   }
 
   hintBtn.onclick = async () => {
@@ -555,6 +643,12 @@
       updateHUD(out);
       feedbackBox.style.display = "block";
 
+      // Detect streak shield activation: wrong answer but streak didn't drop to 0
+      if (!out.correct && sessionSettings.streak_shield && (out.streak ?? 0) > 0) {
+        sessionSettings.streak_shield = false;
+        showToast("🛡 Streak shield activated — your streak is protected this time!", 4000);
+      }
+
       if (out.correct) {
         answered = true;
         clearInterval(timerHandle);
@@ -562,6 +656,19 @@
         feedbackBox.classList.add("correct");
         feedbackMsg.textContent  = out.feedback_message;
         feedbackExpl.textContent = out.explanation;
+
+        // Per-type correct-answer celebration toast
+        const isFirstTry = (retryCount === 0);
+        const correctToasts = {
+          "Achiever":       isFirstTry ? "🏆 First-try! Accuracy up." : "✅ Correct! Keep it up.",
+          "Player":         `🎁 +${out.xp - (loadState()._hud?.xp ?? 0)} XP earned! Streak: ${out.streak} 🔥`,
+          "Socialiser":     `👥 Nice one! Streak: ${out.streak}; you're keeping up with the best.`,
+          "Free Spirit":    "🧭 Correct! Nice approach.",
+          "Philanthropist": "💡 Well done! Your efforts are boosting the class progress.",
+          "Disruptor":      "🛠 Broken down and solved; good work.",
+        };
+        const msg = correctToasts[hexadType];
+        if (msg) showToast(msg, 2500);
         feedbackNudge.textContent= "";
         if (out.difficulty_message) diffMsg.textContent = out.difficulty_message;
         // Advance saved state to next question so restore never re-answers this one
@@ -576,8 +683,21 @@
           } else {
             nextWrap.classList.add("visible");
           }
+        } else if (inBonusRound && bonusQueue.length > 0) {
+          // Advance to next bonus question via Next button
+          pendingQuestion = bonusQueue.shift();
+          diffMsg.textContent = bonusQueue.length > 0
+            ? `⚡ ${bonusQueue.length + 1} bonus question${bonusQueue.length + 1 > 1 ? "s" : ""} left.`
+            : "⚡ Last bonus question — then Finish!";
+          nextWrap.classList.add("visible");
         } else {
-          diffMsg.textContent += (diffMsg.textContent ? "  ·  " : "") + "🏁 Session complete — click Finish.";
+          if (inBonusRound) diffMsg.textContent = "⚡ Bonus round complete! Click Finish.";
+          else diffMsg.textContent += (diffMsg.textContent ? "  ·  " : "") + "🏁 Session complete — click Finish.";
+          if ((out.skipped_questions || []).length > 0 && !inBonusRound) {
+            bonusQueue = out.skipped_questions;
+            trySkippedBtn.classList.add("visible");
+            trySkippedBtn.textContent = `⚡ Try Skipped Questions (${bonusQueue.length})`;
+          }
         }
       } else {
         retryCount += 1;
@@ -624,6 +744,11 @@
         clearInterval(timerHandle);
         diffMsg.textContent = "🏁 Session complete — click Finish.";
         submitBtn.disabled  = true;
+        if ((out.skipped_questions || []).length > 0) {
+          bonusQueue = out.skipped_questions;
+          trySkippedBtn.classList.add("visible");
+          trySkippedBtn.textContent = `⚡ Try Skipped Questions (${bonusQueue.length})`;
+        }
       }
     } catch (e) {
       err.textContent = e?.message || "Skip failed.";
@@ -637,6 +762,16 @@
       showToast("🧭 Challenge accepted! Good luck.");
       renderQuestion(pendingQuestion);
     }
+  };
+
+  trySkippedBtn.onclick = () => {
+    if (bonusQueue.length === 0) return;
+    inBonusRound = true;
+    trySkippedBtn.classList.remove("visible");
+    diffMsg.textContent = `⚡ Bonus round — ${bonusQueue.length} skipped question${bonusQueue.length > 1 ? "s" : ""} to retry.`;
+    submitBtn.disabled = false;
+    hintBtn.disabled   = false;
+    renderQuestion(bonusQueue.shift());
   };
 
   finishBtn.onclick = async () => {
@@ -663,8 +798,10 @@
 
   function renderMiniLb(lb) {
     const myName = (state.display_name || "").toLowerCase();
-    const top5   = lb.overall.slice(0, 5);
-    const rows   = top5.map(e => {
+    const all    = lb.overall;
+    const top3   = all.slice(0, 3);
+
+    function rowHtml(e) {
       const isMe = myName && e.display_name.toLowerCase() === myName;
       return `<div class="mini-lb-row${isMe ? " mini-me" : ""}">
         <span class="mini-rank">${medalFor(e.rank)}</span>
@@ -672,14 +809,28 @@
           ${e.is_active ? '<span class="mini-active"></span>' : ""}</span>
         <span class="mini-xp">⚡ ${e.total_xp}</span>
       </div>`;
-    }).join("");
+    }
+
+    const rows = top3.map(rowHtml).join("");
+
+    // If current user is outside top 3, find and append their entry
+    const meEntry = myName ? all.find(e => e.display_name.toLowerCase() === myName) : null;
+    const inTop3  = meEntry && meEntry.rank <= 3;
+    const extraRow = (meEntry && !inTop3)
+      ? `<div class="mini-lb-row" style="opacity:0.5; font-size:11px; text-align:center; padding:2px 0;">· · ·</div>${rowHtml(meEntry)}`
+      : "";
+
     document.getElementById("lbArea").innerHTML = `
       <div class="mini-lb">
         <div class="mini-lb-header">
           <span class="mini-lb-title">🏆 Leaderboard</span>
           <span class="mini-lb-live"><span class="mini-live-dot"></span>Live</span>
         </div>
-        ${rows}
+        ${rows}${extraRow}
+        <a href="leaderboard.html" target="_blank" style="margin-top:8px; border-radius:8px; text-decoration:none; display:flex; justify-content:space-between; align-items:center; padding:9px 12px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff;">
+          <span style="font-size:13px; font-weight:600;">View Full Leaderboard</span>
+          <span style="font-size:13px;">→</span>
+        </a>
       </div>`;
   }
 
@@ -692,8 +843,9 @@
     try {
       const lb  = await api("/leaderboard");
       const hx  = (hexadType || state.hexad_type || "").trim();
+      const forceLb = sessionSettings.force_leaderboard || false;
 
-      if (hx === "Socialiser" || hx === "Player") {
+      if (hx === "Socialiser" || hx === "Player" || forceLb) {
         if (lb.total_users >= 2) renderMiniLb(lb);
         else                     renderLbWaiting();
         return;  // no badge to update — area was replaced

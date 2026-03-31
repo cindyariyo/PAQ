@@ -1,4 +1,4 @@
-﻿const API_BASE = "http://127.0.0.1:8010";
+﻿const API_BASE = "/api";
 
 export async function api(path, method = "GET", body = null) {
   const opts = { method, headers: { "Content-Type": "application/json" } };

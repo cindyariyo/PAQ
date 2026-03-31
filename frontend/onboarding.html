@@ -98,18 +98,16 @@
     const qCard  = document.getElementById("qCard");
     const status = document.getElementById("status");
 
-    const SCALE_LABELS = { 1:"1 – Not at all", 2:"2", 3:"3 – Neutral", 4:"4", 5:"5 – Very much" };
-
     async function load() {
       try {
         const questions = await api("/onboarding/questions");
         qCard.innerHTML = questions.map(q => `
-          <div class="q-block">
+          <div class="q-block" data-qid="${q.id}">
             <div class="q-text">${q.text}</div>
             <div class="scale-row">
               ${[1,2,3,4,5].map(v => `
                 <label>
-                  <input type="radio" name="${q.id}" value="${v}" ${v===3?"checked":""}>
+                  <input type="radio" name="${q.id}" value="${v}" required>
                   <span>${v}</span>
                 </label>
               `).join("")}
@@ -125,13 +123,27 @@
     }
 
     document.getElementById("submitBtn").onclick = async () => {
-      status.textContent = "Saving...";
       const answers = {};
-      // collect one radio per question
+      const unanswered = [];
       document.querySelectorAll(".q-block").forEach(block => {
         const checked = block.querySelector("input[type='radio']:checked");
-        if (checked) answers[checked.name] = parseInt(checked.value, 10);
+        if (checked) {
+          answers[checked.name] = parseInt(checked.value, 10);
+        } else {
+          unanswered.push(block);
+        }
       });
+
+      if (unanswered.length > 0) {
+        // Highlight unanswered questions
+        document.querySelectorAll(".q-block").forEach(b => b.style.border = "");
+        unanswered.forEach(b => b.style.border = "1px solid rgba(255,100,100,0.6)");
+        unanswered[0].scrollIntoView({ behavior: "smooth", block: "center" });
+        status.textContent = `Please answer all ${unanswered.length} remaining question${unanswered.length > 1 ? "s" : ""}.`;
+        return;
+      }
+      document.querySelectorAll(".q-block").forEach(b => b.style.border = "");
+      status.textContent = "Saving...";
 
       try {
         const out = await api("/onboarding/submit", "POST", { user_id: state.user_id, answers });

@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .db import Base, engine, SessionLocal
 from .models import Question
-from .routers import auth, onboarding, sessions, users, leaderboard
+from .routers import auth, onboarding, sessions, users, leaderboard, admin
 # from .seed import seed_questions
 from . import seed as seed_module
 
@@ -24,6 +24,7 @@ app.include_router(onboarding.router)
 app.include_router(sessions.router)
 app.include_router(users.router)
 app.include_router(leaderboard.router)
+app.include_router(admin.router)
 
 
 

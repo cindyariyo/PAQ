@@ -188,6 +188,17 @@ def study_status(key: str = Query(...), fmt: str = Query("html"), db: Session = 
     return HTMLResponse(html)
 
 
+@router.get("/download-db")
+def download_db(key: str = Query(...)):
+    """Download the live SQLite database file."""
+    _check_key(key)
+    db_path = os.environ.get("DATABASE_URL", "sqlite:///./fyp.db").replace("sqlite:///", "")
+    if not os.path.exists(db_path):
+        raise HTTPException(status_code=404, detail="Database file not found")
+    from fastapi.responses import FileResponse
+    return FileResponse(db_path, filename="fyp.db", media_type="application/octet-stream")
+
+
 @router.post("/reset-db")
 def reset_db(key: str = Query(...)):
     """

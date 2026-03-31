@@ -413,17 +413,14 @@
     hintLevelShown = 0;
   }
 
-  // Hint thresholds scale with difficulty level:
-  // Levels 1-2: 45s / 75s  (standard)
-  // Level 3:    55s / 85s  (+10s)
-  // Level 4:    65s / 95s  (+20s)
-  // Level 5:    75s / 105s (+30s)
+
   // Hint trigger thresholds by difficulty level:
   // Level 1: hint1=45s,  hint2=75s
   // Level 2: hint1=45s,  hint2=75s
   // Level 3: hint1=55s,  hint2=85s
   // Level 4: hint1=80s,  hint2=110s
   // Level 5: hint1=110s, hint2=140s
+
   function hintThresholds(level) {
     const base = {
       1: { h1: 45,  h2: 75  },
@@ -525,7 +522,8 @@
       "Disruptor":     ["Try an alternative method if your first fails.", "Trace with small examples mentally.", "Use Hint 1 then attempt immediately."],
       "Unknown":       ["Answer quickly + correctly to level up.", "Hints help but reduce your strong-correct streak.", "Streak boosts momentum."],
     };
-    // "challenge" variant: push harder; "recovery" variant: softer + encouragement
+
+    // "challenge" variant: push harder, "recovery" variant: softer + encouragement
     const tipsChallenge = {
       "Player":        ["Try without hints, fast answers to maximise XP.", "Aim for a 5+ streak this session."],
       "Achiever":      ["Try to beat your previous session accuracy.", "Only use hints if totally stuck — the goal is mastery."],
@@ -779,7 +777,7 @@
     clearInterval(timerHandle);
     try {
       const out = await api(`/sessions/${sessionId}/finish?user_id=${state.user_id}`, "POST");
-      saveState({ ...state, session_id: sessionId, summary: out, _q: null, _hud: null, _session_done: false });
+      saveState({ ...loadState(), session_id: sessionId, summary: out, _q: null, _hud: null, _session_done: false });
       window.location.href = "summary.html";
     } catch (e) {
       err.textContent = e?.message || "Could not finish session.";
